@@ -1,0 +1,48 @@
+{{define "content"}}
+{{with .Data}}
+<h1>{{.Client.Name}} {{if .Client.ArchivedAt.Valid}}<small>(archived)</small>{{end}}</h1>
+<p>{{if .Client.Email}}Email: {{.Client.Email}}<br>{{end}}{{if .Client.Phone}}Phone: {{.Client.Phone}}<br>{{end}}Created {{date .Client.CreatedAt}}</p>
+{{if .Client.Notes}}<h2>Internal notes</h2><p>{{.Client.Notes}}</p>{{end}}
+{{if $.IsOwner}}
+<details>
+<summary>Edit client</summary>
+<form method="post" action="/clients/{{.Client.ID}}">
+  <p><label for="name">Organization name</label><br><input id="name" name="name" required maxlength="200" value="{{.Client.Name}}"></p>
+  <p><label for="email">Email</label><br><input id="email" name="email" type="email" maxlength="254" value="{{.Client.Email}}"></p>
+  <p><label for="phone">Phone</label><br><input id="phone" name="phone" maxlength="60" value="{{.Client.Phone}}"></p>
+  <p><label for="notes">Internal notes</label><br><textarea id="notes" name="notes" rows="3" maxlength="10000">{{.Client.Notes}}</textarea></p>
+  <button type="submit">Save</button>
+</form>
+{{if .Client.ArchivedAt.Valid}}<form method="post" action="/clients/{{.Client.ID}}/unarchive"><button type="submit">Unarchive</button></form>
+{{else}}<form method="post" action="/clients/{{.Client.ID}}/archive"><button type="submit">Archive client</button> <small>All projects must be closed first.</small></form>{{end}}
+</details>
+{{end}}
+
+<h2>Contacts</h2>
+{{if .Contacts}}
+<table>
+<thead><tr><th>Name</th><th>Email</th><th>Title</th><th>Portal access</th><th></th></tr></thead>
+<tbody>{{range .Contacts}}<tr><td>{{.Name}}</td><td>{{.Email}}</td><td>{{.Title}}</td><td>{{if .UserID.Valid}}active{{else}}not invited yet{{end}}</td>
+<td><form method="post" action="/clients/{{$.Data.Client.ID}}/contacts/{{.ID}}/remove"><button type="submit">Remove</button></form></td></tr>{{end}}</tbody>
+</table>
+{{else}}<p>No contacts yet.</p>{{end}}
+<details>
+<summary>Add contact</summary>
+<form method="post" action="/clients/{{.Client.ID}}/contacts">
+  <p><label for="cname">Name</label><br><input id="cname" name="name" required maxlength="200"></p>
+  <p><label for="cemail">Email</label><br><input id="cemail" name="email" type="email" required maxlength="254"></p>
+  <p><label for="ctitle">Title</label><br><input id="ctitle" name="title" maxlength="200"></p>
+  <button type="submit">Add contact</button>
+</form>
+<p><small>Inviting contacts into the portal arrives in the next release.</small></p>
+</details>
+
+<h2>Projects</h2>
+{{if .Projects}}
+<table>
+<thead><tr><th>Project</th><th>Status</th><th>Updated</th></tr></thead>
+<tbody>{{range .Projects}}<tr><td><a href="/projects/{{.ID}}">{{.Name}}</a></td><td>{{.Status}}</td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
+</table>
+{{else}}<p>No projects for this client. <a href="/projects">Create one</a>.</p>{{end}}
+{{end}}
+{{end}}

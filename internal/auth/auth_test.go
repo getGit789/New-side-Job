@@ -37,6 +37,12 @@ func TestSessionLifecycle(t *testing.T) {
 		if _, err := tx.Exec(`INSERT INTO users (id,email,name,password_hash,created_at,updated_at) VALUES ('u1','a@b.c','A','x',?,?)`, db.Now(), db.Now()); err != nil {
 			return err
 		}
+		if _, err := tx.Exec(`INSERT INTO workspaces (id,name,created_at,updated_at) VALUES ('w1','W',?,?)`, db.Now(), db.Now()); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO memberships (workspace_id,user_id,role,created_at) VALUES ('w1','u1','owner',?)`, db.Now()); err != nil {
+			return err
+		}
 		token, err = CreateSession(ctx, tx, "u1", "127.0.0.1", "test")
 		return err
 	})
@@ -44,7 +50,7 @@ func TestSessionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	u, ok, err := UserBySession(ctx, d, token)
-	if err != nil || !ok || u.ID != "u1" {
+	if err != nil || !ok || u.ID != "u1" || u.Role != "owner" || u.WorkspaceID != "w1" {
 		t.Fatalf("lookup: ok=%v err=%v u=%+v", ok, err, u)
 	}
 	if _, ok, _ := UserBySession(ctx, d, "not-a-token"); ok {

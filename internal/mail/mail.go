@@ -20,6 +20,11 @@ type Mailer struct {
 	log *slog.Logger
 }
 
+// Job is the payload of a "mail.send" background job.
+type Job struct {
+	To, Subject, Body string
+}
+
 func New(cfg config.SMTP, log *slog.Logger) *Mailer { return &Mailer{cfg: cfg, log: log} }
 
 func (m *Mailer) Configured() bool { return m.cfg.Host != "" }
@@ -43,7 +48,8 @@ func (m *Mailer) Send(to, subject, body string) error {
 		body,
 	}, "\r\n")
 	if !m.Configured() {
-		m.log.Info("mail (not sent: SMTP not configured)", "to", to, "subject", subject)
+		// Development and demo mode: the body is logged so invitation links can be copied from the log.
+		m.log.Info("mail (not sent: SMTP not configured)", "to", to, "subject", subject, "body", body)
 		return nil
 	}
 	addr := net.JoinHostPort(m.cfg.Host, fmt.Sprint(m.cfg.Port))

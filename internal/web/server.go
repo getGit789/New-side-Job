@@ -21,6 +21,7 @@ import (
 	"briefrelay/internal/auth"
 	"briefrelay/internal/config"
 	"briefrelay/internal/db"
+	"briefrelay/internal/domain"
 	"briefrelay/internal/jobs"
 	"briefrelay/internal/mail"
 	"briefrelay/internal/storage"
@@ -48,11 +49,26 @@ type Server struct {
 	dummyHash string // keeps failed logins for unknown users as slow as real ones
 }
 
+var funcs = template.FuncMap{
+	"date": func(s string) string {
+		t, err := db.ParseTime(s)
+		if err != nil {
+			return s
+		}
+		return t.Format("2006-01-02 15:04")
+	},
+	"money": func(cents int64, cur string) string {
+		return fmt.Sprintf("%s %d.%02d", cur, cents/100, cents%100)
+	},
+	"human": func(s string) string { return strings.ReplaceAll(s, "_", " ") },
+	"add":   func(a, b int) int { return a + b },
+}
+
 func New(cfg config.Config, d *db.DB, q *jobs.Queue, m *mail.Mailer, st *storage.Local, log *slog.Logger) (*Server, error) {
 	s := &Server{cfg: cfg, db: d, q: q, mail: m, store: st, log: log, pages: map[string]*template.Template{},
 		limiter: newIPLimiter(20, 40), authLimit: newIPLimiter(0.1, 5), dummyHash: auth.HashPassword("dummy")}
-	for _, p := range []string{"setup", "login", "home", "error"} {
-		t, err := template.ParseFS(templateFS, "templates/layout.html", "templates/"+p+".html")
+	for _, p := range []string{"setup", "login", "home", "error", "clients", "client", "projects", "project", "deliverable", "team", "invite", "activity"} {
+		t, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/layout.html", "templates/"+p+".html")
 		if err != nil {
 			return nil, err
 		}
@@ -75,6 +91,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /login", s.loginSubmit)
 	mux.HandleFunc("POST /logout", s.logout)
 	mux.HandleFunc("GET /{$}", s.home)
+	s.clientRoutes(mux)
+	s.projectRoutes(mux)
+	s.deliverableRoutes(mux)
+	s.invoiceRoutes(mux)
+	s.adminRoutes(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		s.errorPage(w, r, http.StatusNotFound, "That page does not exist.")
 	})
@@ -84,6 +105,7 @@ func (s *Server) Handler() http.Handler {
 		s.errorPage(w, r, http.StatusForbidden, "Cross-site request blocked.")
 	}))
 	var h http.Handler = cop.Handler(mux)
+	h = s.withUser(h)
 	h = s.setupGate(h)
 	h = s.rateLimit(h)
 	h = s.securityHeaders(h)
@@ -148,7 +170,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 func (s *Server) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := s.clientIP(r)
-		authPath := r.Method == http.MethodPost && (r.URL.Path == "/login" || r.URL.Path == "/setup")
+		authPath := r.Method == http.MethodPost && (r.URL.Path == "/login" || r.URL.Path == "/setup" || strings.HasPrefix(r.URL.Path, "/invite/"))
 		if !s.limiter.allow(ip) || (authPath && !s.authLimit.allow(ip)) {
 			w.Header().Set("Retry-After", "60")
 			s.errorPage(w, r, http.StatusTooManyRequests, "Too many requests. Please wait a minute and try again.")
@@ -173,6 +195,22 @@ func (s *Server) setupGate(next http.Handler) http.Handler {
 	})
 }
 
+// withUser resolves the session cookie once per request. It hits the database every time, so logout is immediate.
+func (s *Server) withUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if c, err := r.Cookie(sessionCookie); err == nil {
+			u, ok, err := auth.UserBySession(r.Context(), s.db, c.Value)
+			if err != nil {
+				s.log.Error("session lookup", "err", err)
+			}
+			if ok {
+				r = r.WithContext(context.WithValue(r.Context(), userKey, &u))
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) clientIP(r *http.Request) string {
 	if s.cfg.TrustProxy {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
@@ -186,19 +224,6 @@ func (s *Server) clientIP(r *http.Request) string {
 	return host
 }
 
-// currentUser resolves the session cookie. It re-reads the database every time: logging out is immediate.
-func (s *Server) currentUser(r *http.Request) (auth.User, bool) {
-	c, err := r.Cookie(sessionCookie)
-	if err != nil {
-		return auth.User{}, false
-	}
-	u, ok, err := auth.UserBySession(r.Context(), s.db, c.Value)
-	if err != nil {
-		s.log.Error("session lookup", "err", err)
-	}
-	return u, ok
-}
-
 func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true,
 		Secure: s.cfg.BaseURL.Scheme == "https", SameSite: http.SameSiteLaxMode, MaxAge: maxAge})
@@ -207,24 +232,28 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge in
 // ---- rendering ----
 
 type view struct {
-	User      *auth.User
-	Workspace string
-	Error     string
-	Form      map[string]string
-	Status    string
-	Message   string
+	User    *auth.User
+	Role    domain.Role
+	IsOwner bool
+	Title   string
+	Error   string
+	Form    map[string]string
+	Status  string
+	Message string
+	Data    any
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page string, v view) {
-	if v.User == nil {
-		if u, ok := s.currentUser(r); ok {
-			v.User = &u
-		}
+	v.User = s.user(r)
+	if v.User != nil {
+		v.Role = domain.Role(v.User.Role)
+		v.IsOwner = v.Role == domain.RoleOwner
 	}
 	if v.Form == nil {
 		v.Form = map[string]string{}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	if err := s.pages[page].ExecuteTemplate(w, "layout", v); err != nil {
 		s.log.Error("render", "page", page, "err", err)
@@ -232,7 +261,22 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page
 }
 
 func (s *Server) errorPage(w http.ResponseWriter, r *http.Request, status int, msg string) {
-	s.render(w, r, status, "error", view{Status: fmt.Sprintf("%d %s", status, http.StatusText(status)), Message: msg})
+	s.render(w, r, status, "error", view{Title: http.StatusText(status), Status: fmt.Sprintf("%d %s", status, http.StatusText(status)), Message: msg})
+}
+
+func (s *Server) parseForm(w http.ResponseWriter, r *http.Request) (map[string]string, bool) {
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	}
+	if err := r.ParseMultipartForm(4 << 20); err != nil && !errors.Is(err, http.ErrNotMultipart) {
+		s.errorPage(w, r, http.StatusBadRequest, "Could not read the form.")
+		return nil, false
+	}
+	out := map[string]string{}
+	for k := range r.PostForm {
+		out[k] = strings.TrimSpace(r.PostForm.Get(k))
+	}
+	return out, true
 }
 
 // ---- handlers ----
@@ -258,27 +302,27 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	stats, _ := s.q.Stats(ctx)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	if !healthy {
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}
 	status := "ok"
 	if !healthy {
 		status = "degraded"
+		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 	json.NewEncoder(w).Encode(map[string]any{"status": status, "version": Version, "installed": s.installed.Load(), "checks": checks, "jobs": stats})
 }
 
 func (s *Server) setupForm(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, http.StatusOK, "setup", view{})
+	s.render(w, r, http.StatusOK, "setup", view{Title: "Set up"})
 }
+
+var errAlreadyInstalled = errors.New("already installed")
 
 func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	form, ok := s.parseForm(w, r)
 	if !ok {
 		return
 	}
-	v := view{Form: form}
-	email := strings.ToLower(strings.TrimSpace(form["email"]))
+	v := view{Title: "Set up", Form: form}
+	email := strings.ToLower(form["email"])
 	switch {
 	case form["workspace"] == "" || form["name"] == "":
 		v.Error = "Workspace name and your name are required."
@@ -329,8 +373,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		s.log.Error("setup", "err", err)
-		s.errorPage(w, r, http.StatusInternalServerError, "Setup failed. Check the server log.")
+		s.fail(w, r, err)
 		return
 	}
 	s.installed.Store(true)
@@ -338,14 +381,12 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-var errAlreadyInstalled = errors.New("already installed")
-
 func (s *Server) loginForm(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.currentUser(r); ok {
+	if s.user(r) != nil {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
-	s.render(w, r, http.StatusOK, "login", view{})
+	s.render(w, r, http.StatusOK, "login", view{Title: "Log in"})
 }
 
 func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
@@ -353,13 +394,12 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	email := strings.ToLower(strings.TrimSpace(form["email"]))
+	email := strings.ToLower(form["email"])
 	ip := s.clientIP(r)
 	var userID, hash string
 	err := s.db.R.QueryRowContext(r.Context(), `SELECT id, password_hash FROM users WHERE email = ?`, email).Scan(&userID, &hash)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		s.log.Error("login lookup", "err", err)
-		s.errorPage(w, r, http.StatusInternalServerError, "Login failed. Check the server log.")
+		s.fail(w, r, err)
 		return
 	}
 	if hash == "" {
@@ -367,10 +407,10 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	valid, _ := auth.VerifyPassword(hash, form["password"])
 	if !valid || userID == "" {
-		s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+		s.logErr("audit", s.db.Tx(r.Context(), func(tx *sql.Tx) error {
 			return db.Audit(r.Context(), tx, "", "", "auth.login_failed", "user", email, ip, "")
-		})
-		s.render(w, r, http.StatusUnauthorized, "login", view{Form: map[string]string{"email": form["email"]}, Error: "Email or password is incorrect."})
+		}))
+		s.render(w, r, http.StatusUnauthorized, "login", view{Title: "Log in", Form: map[string]string{"email": form["email"]}, Error: "Email or password is incorrect."})
 		return
 	}
 	var token string
@@ -383,8 +423,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		s.log.Error("login", "err", err)
-		s.errorPage(w, r, http.StatusInternalServerError, "Login failed. Check the server log.")
+		s.fail(w, r, err)
 		return
 	}
 	s.setSessionCookie(w, token, int(auth.SessionTTL.Seconds()))
@@ -393,43 +432,53 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil {
-		u, _ := s.currentUser(r)
-		s.db.Tx(r.Context(), func(tx *sql.Tx) error {
-			if u.ID != "" {
-				db.Audit(r.Context(), tx, "", u.ID, "auth.logout", "user", u.ID, s.clientIP(r), "")
+		u := s.user(r)
+		s.logErr("logout", s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+			if u != nil {
+				if err := db.Audit(r.Context(), tx, u.WorkspaceID, u.ID, "auth.logout", "user", u.ID, s.clientIP(r), ""); err != nil {
+					return err
+				}
 			}
 			return auth.DeleteSession(r.Context(), tx, c.Value)
-		})
+		}))
 	}
 	s.setSessionCookie(w, "", -1)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
+type homePage struct {
+	Workspace               string
+	ActiveProjects, Clients int
+	Recent                  []ProjectRow
+	PendingReviews          int
+}
+
 func (s *Server) home(w http.ResponseWriter, r *http.Request) {
-	u, ok := s.currentUser(r)
-	if !ok {
+	u := s.user(r)
+	if u == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
-	var ws string
-	err := s.db.R.QueryRowContext(r.Context(), `SELECT w.name FROM workspaces w JOIN memberships m ON m.workspace_id = w.id WHERE m.user_id = ? ORDER BY m.created_at LIMIT 1`, u.ID).Scan(&ws)
-	if err != nil {
-		s.log.Error("home", "err", err)
-		s.errorPage(w, r, http.StatusInternalServerError, "Could not load your workspace.")
+	var d homePage
+	if err := s.db.R.QueryRowContext(r.Context(), `SELECT name FROM workspaces WHERE id = ?`, u.WorkspaceID).Scan(&d.Workspace); err != nil {
+		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, "home", view{User: &u, Workspace: ws})
-}
-
-func (s *Server) parseForm(w http.ResponseWriter, r *http.Request) (map[string]string, bool) {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	if err := r.ParseForm(); err != nil {
-		s.errorPage(w, r, http.StatusBadRequest, "Could not read the form.")
-		return nil, false
+	if !domain.Role(u.Role).IsStaff() {
+		s.render(w, r, http.StatusOK, "home", view{Title: d.Workspace, Data: d})
+		return
 	}
-	out := map[string]string{}
-	for k := range r.PostForm {
-		out[k] = strings.TrimSpace(r.PostForm.Get(k))
+	cond, args := projectScope(u)
+	s.logErr("home counts", s.db.R.QueryRowContext(r.Context(), `SELECT
+		(SELECT count(*) FROM projects p WHERE p.status = 'active' AND `+cond+`),
+		(SELECT count(*) FROM client_orgs WHERE workspace_id = ? AND archived_at IS NULL),
+		(SELECT count(*) FROM deliverable_versions v JOIN deliverables d ON d.id = v.deliverable_id JOIN projects p ON p.id = d.project_id WHERE v.state = 'shared' AND `+cond+`)`,
+		append(append(append([]any{}, args...), u.WorkspaceID), args...)...).Scan(&d.ActiveProjects, &d.Clients, &d.PendingReviews))
+	var err error
+	d.Recent, err = s.listProjects(r, "", "active", 10, 0)
+	if err != nil {
+		s.fail(w, r, err)
+		return
 	}
-	return out, true
+	s.render(w, r, http.StatusOK, "home", view{Title: d.Workspace, Data: d})
 }

@@ -1,0 +1,55 @@
+{{define "content"}}
+{{with .Data}}
+{{$d := .Deliverable}}{{$p := .Project}}
+<p><a href="/projects/{{$p.ID}}">← {{$p.Name}}</a></p>
+<h1>{{$d.Title}}</h1>
+<p>{{if $d.Required}}Required for sign-off.{{else}}Optional.{{end}} {{if .Latest}}Current state: <strong>{{human .Latest}}</strong>.{{else}}No version yet.{{end}}</p>
+{{if $d.Description}}<p>{{$d.Description}}</p>{{end}}
+{{if not $p.Closed}}
+<details>
+<summary>Edit deliverable</summary>
+<form method="post" action="/deliverables/{{$d.ID}}">
+  <p><label for="title">Title</label><br><input id="title" name="title" required maxlength="200" value="{{$d.Title}}"></p>
+  <p><label for="description">Description</label><br><textarea id="description" name="description" rows="2" maxlength="10000">{{$d.Description}}</textarea></p>
+  <p><label><input type="checkbox" name="required" value="1" {{if $d.Required}}checked{{end}}> Required for final sign-off</label></p>
+  <button type="submit">Save</button>
+</form>
+</details>
+{{end}}
+
+<h2>Versions</h2>
+{{range .Versions}}
+<section aria-label="Version {{.Number}}">
+<h3>v{{.Number}} — {{human .State}}</h3>
+<p>{{if eq .Kind "file"}}File: <a href="/versions/{{.ID}}/download">{{.FileName.String}}</a> ({{.FileSize.Int64}} bytes){{else}}Link: <a href="{{.URL}}" rel="noopener noreferrer">{{.URL}}</a>{{end}}
+<br>Added {{date .CreatedAt}}{{if .CreatedBy}} by {{.CreatedBy}}{{end}}{{if .SharedAt.Valid}} · Shared {{date .SharedAt.String}}{{end}}</p>
+{{if .Note}}<p>{{.Note}}</p>{{end}}
+{{if .ReopenReason}}<p><em>Reopened: {{.ReopenReason}}</em></p>{{end}}
+{{if .Decisions}}<ul>{{range .Decisions}}<li>{{human .Type}} by {{.By}} on {{date .CreatedAt}}{{if .Note}}: {{.Note}}{{end}}</li>{{end}}</ul>{{end}}
+{{if not $p.Closed}}
+{{if eq .State "draft"}}
+<form method="post" action="/versions/{{.ID}}/share" style="display:inline"><button type="submit">Share with client</button></form>
+<form method="post" action="/versions/{{.ID}}/delete" style="display:inline"><button type="submit">Delete draft</button></form>
+{{else if eq .State "shared"}}
+<form method="post" action="/versions/{{.ID}}/withdraw" style="display:inline"><button type="submit">Withdraw</button></form>
+{{end}}
+{{end}}
+</section>
+{{else}}<p>No versions yet.</p>{{end}}
+
+{{if .CanAdd}}
+<details open>
+<summary>{{if .NeedsReason}}Reopen with a new version{{else}}Add version{{end}}</summary>
+<form method="post" action="/deliverables/{{$d.ID}}/versions" enctype="multipart/form-data">
+  <p><label for="file">File</label><br><input id="file" name="file" type="file"></p>
+  <p>or <label for="url">Link</label><br><input id="url" name="url" type="url" maxlength="2048"></p>
+  <p><label for="note">Note for the client</label><br><textarea id="note" name="note" rows="2" maxlength="10000"></textarea></p>
+  {{if .NeedsReason}}<p><label for="reason">Reason for reopening an approved deliverable (required)</label><br><input id="reason" name="reason" required minlength="3" maxlength="1000"></p>{{end}}
+  <button type="submit">Add as draft</button>
+</form>
+</details>
+{{else if not $p.Closed}}
+<p>A new version can be added after the client decides on the shared one, or after the draft is shared or deleted.</p>
+{{end}}
+{{end}}
+{{end}}

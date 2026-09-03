@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var ErrTooLarge = errors.New("storage: file exceeds the size limit")
@@ -102,6 +103,20 @@ func (l *Local) Writable() error {
 	}
 	f.Close()
 	return os.Remove(f.Name())
+}
+
+// CleanTemp removes abandoned upload temp files older than the given age.
+func (l *Local) CleanTemp(olderThan time.Duration) error {
+	entries, err := os.ReadDir(filepath.Join(l.Dir, "tmp"))
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if info, err := e.Info(); err == nil && time.Since(info.ModTime()) > olderThan {
+			os.Remove(filepath.Join(l.Dir, "tmp", e.Name()))
+		}
+	}
+	return nil
 }
 
 // path shards keys into ab/cd/abcd... so one directory never holds every file.

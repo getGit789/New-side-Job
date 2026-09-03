@@ -1,0 +1,24 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Team</h1>
+<table>
+<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Since</th><th></th></tr></thead>
+<tbody>{{range .Members}}<tr><td>{{.Name}}</td><td>{{.Email}}</td><td>{{.Role}}</td><td>{{date .CreatedAt}}</td>
+<td>{{if eq .Role "staff"}}<form method="post" action="/team/{{.ID}}/remove"><button type="submit">Remove</button></form>{{end}}</td></tr>{{end}}</tbody>
+</table>
+<h2>Invite staff</h2>
+<form method="post" action="/team/invite">
+  <label for="email">Email</label> <input id="email" name="email" type="email" required maxlength="254">
+  <button type="submit">Send invitation</button>
+</form>
+<p><small>The link is valid for 7 days and works once. If mail is not configured, the link is written to the server log.</small></p>
+{{if .Invitations}}
+<h2>Pending invitations</h2>
+<table>
+<thead><tr><th>Email</th><th>Role</th><th>Sent</th><th>Expires</th><th></th></tr></thead>
+<tbody>{{range .Invitations}}<tr><td>{{.Email}}</td><td>{{.Role}}</td><td>{{date .CreatedAt}}</td><td>{{date .ExpiresAt}}</td>
+<td><form method="post" action="/invitations/{{.ID}}/revoke"><button type="submit">Revoke</button></form></td></tr>{{end}}</tbody>
+</table>
+{{end}}
+{{end}}
+{{end}}

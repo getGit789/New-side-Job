@@ -21,6 +21,15 @@ Open http://127.0.0.1:8080 and the setup page creates the owner account. Setup t
 | `briefrelay version` | print the build version |
 | `GET /healthz` | JSON readiness for database, storage, jobs, mail; 503 when degraded |
 
+## What works today (Phase 3)
+
+Owner and staff can: add clients and contacts, create projects, assign staff, add milestones with client
+visibility, add deliverables, upload file or link versions, share and withdraw them, record invoices with
+documents and payment links, close and reopen projects, invite staff, and read the audit log.
+The client portal (invitations, review, approval, sign-off) is Phase 4.
+
+Rules the server enforces are in [docs/product-contract.md](docs/product-contract.md).
+
 ## Development
 
 ```bash
@@ -39,7 +48,8 @@ internal/auth/        argon2id passwords, tokens, DB sessions
 internal/jobs/        SQLite-backed queue: retries, backoff, dedupe keys, recurring jobs
 internal/storage/     private file store, random names, content sniffing, size limits
 internal/mail/        SMTP (STARTTLS or 465), log-only when unconfigured
-internal/web/         router, middleware, setup wizard, login, health, templates
+internal/domain/      approval state machine, roles, invoice statuses (no HTTP, no SQL)
+internal/web/         router, middleware, authz.go (all scoping), one file per area, templates
 docs/adr/             architecture decisions
 ```
 

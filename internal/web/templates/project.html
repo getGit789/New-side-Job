@@ -1,0 +1,126 @@
+{{define "content"}}
+{{with .Data}}
+{{$p := .Project}}
+<h1>{{$p.Name}} <small>({{$p.Status}})</small></h1>
+<p>Client: <a href="/clients/{{$p.ClientOrgID}}">{{$p.ClientName}}</a> · Created {{date $p.CreatedAt}}{{if $p.Closed}} · Closed {{date $p.ClosedAt.String}}{{end}}</p>
+{{if $p.Summary}}<p>{{$p.Summary}}</p>{{end}}
+<p>Intake: {{.IntakeStatus}}</p>
+
+{{if $p.Closed}}
+<p>This project is closed and read-only.</p>
+{{if $.IsOwner}}<form method="post" action="/projects/{{$p.ID}}/reopen">
+  <label for="reason">Reason to reopen</label> <input id="reason" name="reason" required minlength="3" maxlength="1000">
+  <button type="submit">Reopen project</button></form>{{end}}
+{{else}}
+<details>
+<summary>Edit project</summary>
+<form method="post" action="/projects/{{$p.ID}}">
+  <p><label for="name">Project name</label><br><input id="name" name="name" required maxlength="200" value="{{$p.Name}}"></p>
+  <p><label for="summary">Summary</label><br><textarea id="summary" name="summary" rows="3" maxlength="10000">{{$p.Summary}}</textarea></p>
+  <button type="submit">Save</button>
+</form>
+<form method="post" action="/projects/{{$p.ID}}/close"><button type="submit">Close project</button> <small>Makes it read-only. The owner can reopen it.</small></form>
+</details>
+{{end}}
+
+<h2>Team on this project</h2>
+<ul>{{range .Members}}<li>{{.Name}} ({{.Email}}){{if and $.IsOwner (not $p.Closed)}} <form method="post" action="/projects/{{$p.ID}}/members/{{.ID}}/remove" style="display:inline"><button type="submit">Remove</button></form>{{end}}</li>{{else}}<li>Nobody assigned.</li>{{end}}</ul>
+{{if and $.IsOwner .Candidates (not $p.Closed)}}
+<form method="post" action="/projects/{{$p.ID}}/members">
+  <label for="user_id">Assign staff</label>
+  <select id="user_id" name="user_id">{{range .Candidates}}<option value="{{.ID}}">{{.Name}} ({{.Email}})</option>{{end}}</select>
+  <button type="submit">Assign</button>
+</form>
+{{end}}
+
+<h2>Milestones</h2>
+{{if .Milestones}}
+<table>
+<thead><tr><th>Title</th><th>Target</th><th>Status</th><th>Visible to client</th><th>Latest update</th>{{if not $p.Closed}}<th></th>{{end}}</tr></thead>
+<tbody>{{range .Milestones}}<tr>
+{{if $p.Closed}}
+<td>{{.Title}}</td><td>{{.TargetDate}}</td><td>{{human .Status}}</td><td>{{if eq .Visibility "client"}}yes{{else}}no{{end}}</td><td>{{.LatestUpdate}}</td>
+{{else}}
+<form method="post" action="/milestones/{{.ID}}" id="ms-{{.ID}}"></form>
+<td><input form="ms-{{.ID}}" name="title" value="{{.Title}}" required maxlength="200" aria-label="Title"></td>
+<td><input form="ms-{{.ID}}" name="target_date" type="date" value="{{.TargetDate}}" aria-label="Target date"></td>
+<td><select form="ms-{{.ID}}" name="status" aria-label="Status"><option value="planned" {{if eq .Status "planned"}}selected{{end}}>planned</option><option value="in_progress" {{if eq .Status "in_progress"}}selected{{end}}>in progress</option><option value="done" {{if eq .Status "done"}}selected{{end}}>done</option></select></td>
+<td><select form="ms-{{.ID}}" name="visibility" aria-label="Visibility"><option value="internal" {{if eq .Visibility "internal"}}selected{{end}}>internal</option><option value="client" {{if eq .Visibility "client"}}selected{{end}}>client</option></select></td>
+<td><input form="ms-{{.ID}}" name="latest_update" value="{{.LatestUpdate}}" maxlength="10000" aria-label="Latest update"></td>
+<td><button form="ms-{{.ID}}" type="submit">Save</button>{{if eq .Status "planned"}} <form method="post" action="/milestones/{{.ID}}/delete" style="display:inline"><button type="submit">Delete</button></form>{{end}}</td>
+{{end}}
+</tr>{{end}}</tbody>
+</table>
+{{else}}<p>No milestones yet.</p>{{end}}
+{{if not $p.Closed}}
+<details>
+<summary>Add milestone</summary>
+<form method="post" action="/projects/{{$p.ID}}/milestones">
+  <p><label for="mtitle">Title</label><br><input id="mtitle" name="title" required maxlength="200"></p>
+  <p><label for="mdate">Target date</label><br><input id="mdate" name="target_date" type="date"></p>
+  <p><label for="mvis">Visibility</label><br><select id="mvis" name="visibility"><option value="internal">internal</option><option value="client">client</option></select></p>
+  <p><label for="mupd">Latest update</label><br><input id="mupd" name="latest_update" maxlength="10000"></p>
+  <button type="submit">Add milestone</button>
+</form>
+</details>
+{{end}}
+
+<h2>Deliverables</h2>
+{{if .Deliverables}}
+<table>
+<thead><tr><th>Title</th><th>Required</th><th>Latest version</th><th>State</th></tr></thead>
+<tbody>{{range .Deliverables}}<tr><td><a href="/deliverables/{{.ID}}">{{.Title}}</a></td><td>{{if .Required}}yes{{else}}no{{end}}</td><td>{{if .LatestNumber}}v{{.LatestNumber}}{{else}}—{{end}}</td><td>{{if .LatestState}}{{human .LatestState}}{{else}}no version{{end}}</td></tr>{{end}}</tbody>
+</table>
+{{else}}<p>No deliverables yet.</p>{{end}}
+{{if not $p.Closed}}
+<details>
+<summary>Add deliverable</summary>
+<form method="post" action="/projects/{{$p.ID}}/deliverables">
+  <p><label for="dtitle">Title</label><br><input id="dtitle" name="title" required maxlength="200"></p>
+  <p><label for="ddesc">Description</label><br><textarea id="ddesc" name="description" rows="2" maxlength="10000"></textarea></p>
+  <p><label><input type="checkbox" name="required" value="1" checked> Required for final sign-off</label></p>
+  <button type="submit">Add deliverable</button>
+</form>
+</details>
+{{end}}
+
+<h2>Invoices</h2>
+{{if .Invoices}}
+<table>
+<thead><tr><th>Number</th><th>Amount</th><th>Due</th><th>Status</th><th>Visible to client</th><th>Document</th><th>Payment link</th>{{if not $p.Closed}}<th></th>{{end}}</tr></thead>
+<tbody>{{range .Invoices}}<tr>
+<td>{{.Number}}</td><td>{{money .AmountCents .Currency}}</td><td>{{.DueDate}}</td><td>{{.Status}}</td><td>{{if eq .Visibility "client"}}yes{{else}}no{{end}}</td>
+<td>{{if .FileID.Valid}}<a href="/invoices/{{.ID}}/document">Download</a>{{else}}—{{end}}</td>
+<td>{{if .PaymentURL}}<a href="{{.PaymentURL}}" rel="noopener noreferrer">Open</a>{{else}}—{{end}}</td>
+{{if not $p.Closed}}<td>
+{{if eq .Status "draft"}}<form method="post" action="/invoices/{{.ID}}/status" style="display:inline"><input type="hidden" name="to" value="sent"><button type="submit">Mark sent</button></form>{{end}}
+{{if eq .Status "sent"}}<form method="post" action="/invoices/{{.ID}}/status" style="display:inline"><input type="hidden" name="to" value="paid"><button type="submit">Mark paid</button></form>{{end}}
+{{if or (eq .Status "draft") (eq .Status "sent")}}<form method="post" action="/invoices/{{.ID}}/status" style="display:inline"><input type="hidden" name="to" value="canceled"><button type="submit">Cancel</button></form>{{end}}
+</td>{{end}}
+</tr>{{end}}</tbody>
+</table>
+{{else}}<p>No invoices yet.</p>{{end}}
+{{if not $p.Closed}}
+<details>
+<summary>Add invoice record</summary>
+<form method="post" action="/projects/{{$p.ID}}/invoices" enctype="multipart/form-data">
+  <p><label for="inum">Invoice number</label><br><input id="inum" name="number" required maxlength="60"></p>
+  <p><label for="iamt">Amount</label><br><input id="iamt" name="amount" required inputmode="decimal" placeholder="1250.00"> <label for="icur">Currency</label> <input id="icur" name="currency" required maxlength="3" value="USD" size="3"></p>
+  <p><label for="idue">Due date</label><br><input id="idue" name="due_date" type="date"></p>
+  <p><label for="iurl">External payment link</label><br><input id="iurl" name="payment_url" type="url" maxlength="2048"></p>
+  <p><label for="idoc">Invoice document (PDF)</label><br><input id="idoc" name="document" type="file"></p>
+  <p><label for="ivis">Visibility</label><br><select id="ivis" name="visibility"><option value="client">client</option><option value="internal">internal</option></select></p>
+  <button type="submit">Add invoice</button>
+</form>
+</details>
+{{end}}
+
+<h2>Activity</h2>
+{{if .Activity}}
+<table>
+<thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead>
+<tbody>{{range .Activity}}<tr><td>{{date .CreatedAt}}</td><td>{{.Actor}}</td><td>{{human .Action}}</td><td><code>{{.Meta}}</code></td></tr>{{end}}</tbody>
+</table>
+{{else}}<p>Nothing recorded yet.</p>{{end}}
+{{end}}
+{{end}}

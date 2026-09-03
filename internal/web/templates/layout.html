@@ -3,10 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{block "title" .}}BriefRelay{{end}}</title>
+<title>{{if .Title}}{{.Title}} · {{end}}BriefRelay</title>
 </head>
 <body>
-<header><a href="/">BriefRelay</a>{{if .User}} · {{.User.Name}} <form method="post" action="/logout" style="display:inline"><button type="submit">Log out</button></form>{{end}}</header>
+<header>
+<nav aria-label="Main">
+<a href="/">BriefRelay</a>
+{{if .User}}{{if .Role.IsStaff}} · <a href="/clients">Clients</a> · <a href="/projects">Projects</a>{{end}}{{if .IsOwner}} · <a href="/team">Team</a> · <a href="/activity">Activity</a>{{end}}
+ · {{.User.Name}} <form method="post" action="/logout" style="display:inline"><button type="submit">Log out</button></form>{{end}}
+</nav>
+</header>
 <main>
 {{if .Error}}<p role="alert">{{.Error}}</p>{{end}}
 {{template "content" .}}

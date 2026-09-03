@@ -1,0 +1,10 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Activity</h1>
+<table>
+<thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+<tbody>{{range .Events}}<tr><td>{{date .CreatedAt}}</td><td>{{.Actor}}</td><td>{{human .Action}}</td><td>{{.TargetType}} {{.TargetID}}</td><td><code>{{.Meta}}</code></td></tr>{{else}}<tr><td colspan="5">Nothing yet.</td></tr>{{end}}</tbody>
+</table>
+<p>{{if gt .Page 1}}<a href="/activity?page={{add .Page -1}}">Previous</a>{{end}} {{if .HasNext}}<a href="/activity?page={{add .Page 1}}">Next</a>{{end}}</p>
+{{end}}
+{{end}}

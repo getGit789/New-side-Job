@@ -1,0 +1,11 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Join {{.Workspace}}</h1>
+<p>This invitation is for <strong>{{.Email}}</strong>.</p>
+<form method="post" action="/invite/{{.Token}}">
+  <p><label for="name">Your name</label><br><input id="name" name="name" required maxlength="200" value="{{$.Form.name}}"></p>
+  <p><label for="password">Choose a password (at least 12 characters)</label><br><input id="password" name="password" type="password" required minlength="12" autocomplete="new-password"></p>
+  <button type="submit">Create my account</button>
+</form>
+{{end}}
+{{end}}

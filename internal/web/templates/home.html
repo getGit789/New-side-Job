@@ -1,6 +1,21 @@
-{{define "title"}}{{.Workspace}} · BriefRelay{{end}}
 {{define "content"}}
+{{with .Data}}
 <h1>{{.Workspace}}</h1>
-<p>You are logged in as {{.User.Email}}.</p>
-<p>Clients, projects, and deliverables arrive in the next phase.</p>
+{{if $.Role.IsStaff}}
+<ul>
+  <li>Active projects: {{.ActiveProjects}}</li>
+  <li>Clients: {{.Clients}}</li>
+  <li>Versions waiting for a client decision: {{.PendingReviews}}</li>
+</ul>
+<h2>Recent projects</h2>
+{{if .Recent}}
+<table>
+<thead><tr><th>Project</th><th>Client</th><th>Updated</th></tr></thead>
+<tbody>{{range .Recent}}<tr><td><a href="/projects/{{.ID}}">{{.Name}}</a></td><td><a href="/clients/{{.ClientID}}">{{.ClientName}}</a></td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
+</table>
+{{else}}<p>No projects yet. <a href="/clients">Add a client</a>, then <a href="/projects">create a project</a>.</p>{{end}}
+{{else}}
+<p>Your client portal opens in the next release. Ask the workspace owner if you need something now.</p>
+{{end}}
+{{end}}
 {{end}}

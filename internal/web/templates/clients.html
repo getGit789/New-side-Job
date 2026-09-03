@@ -1,0 +1,30 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Clients</h1>
+<form method="get" action="/clients">
+  <label for="q">Search</label> <input id="q" name="q" value="{{.Query}}">
+  <label><input type="checkbox" name="archived" value="1" {{if .ShowArchived}}checked{{end}}> Show archived</label>
+  <button type="submit">Search</button>
+</form>
+{{if $.IsOwner}}
+<details>
+<summary>New client</summary>
+<form method="post" action="/clients">
+  <p><label for="name">Organization name</label><br><input id="name" name="name" required maxlength="200"></p>
+  <p><label for="email">Email</label><br><input id="email" name="email" type="email" maxlength="254"></p>
+  <p><label for="phone">Phone</label><br><input id="phone" name="phone" maxlength="60"></p>
+  <p><label for="notes">Internal notes (never shown to the client)</label><br><textarea id="notes" name="notes" rows="3" maxlength="10000"></textarea></p>
+  <button type="submit">Create client</button>
+</form>
+</details>
+{{end}}
+{{if .Clients}}
+<table>
+<thead><tr><th>Name</th><th>Email</th><th>Projects</th><th>Status</th></tr></thead>
+<tbody>{{range .Clients}}<tr><td><a href="/clients/{{.ID}}">{{.Name}}</a></td><td>{{.Email}}</td><td>{{.ProjectCount}}</td><td>{{if .ArchivedAt.Valid}}archived{{else}}active{{end}}</td></tr>{{end}}</tbody>
+</table>
+{{else}}<p>No clients found.</p>{{end}}
+<p>{{if gt .Page 1}}<a href="/clients?q={{.Query}}&page={{add .Page -1}}{{if .ShowArchived}}&archived=1{{end}}">Previous</a>{{end}}
+{{if .HasNext}}<a href="/clients?q={{.Query}}&page={{add .Page 1}}{{if .ShowArchived}}&archived=1{{end}}">Next</a>{{end}}</p>
+{{end}}
+{{end}}

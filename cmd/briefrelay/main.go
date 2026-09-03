@@ -8,6 +8,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -139,6 +141,15 @@ func serve(cfg config.Config, log *slog.Logger) error {
 	q.Every("jobs.cleanup", 24*time.Hour)
 	q.Handle("sessions.cleanup", func(ctx context.Context, _ []byte) error { return auth.DeleteExpiredSessions(ctx, d) })
 	q.Every("sessions.cleanup", time.Hour)
+	q.Handle("mail.send", func(ctx context.Context, payload []byte) error {
+		var j mail.Job
+		if err := json.Unmarshal(payload, &j); err != nil {
+			return err
+		}
+		return m.Send(j.To, j.Subject, j.Body)
+	})
+	q.Handle("files.cleanup", func(ctx context.Context, _ []byte) error { return cleanupFiles(ctx, d, st) })
+	q.Every("files.cleanup", time.Hour)
 
 	s, err := web.New(cfg, d, q, m, st, log)
 	if err != nil {
@@ -166,5 +177,34 @@ func serve(cfg config.Config, log *slog.Logger) error {
 	}
 	<-workerDone
 	log.Info("stopped")
+	return nil
+}
+
+// cleanupFiles removes blobs of files soft-deleted more than 7 days ago and abandoned upload temp files.
+func cleanupFiles(ctx context.Context, d *db.DB, st *storage.Local) error {
+	if err := st.CleanTemp(24 * time.Hour); err != nil {
+		return err
+	}
+	rows, err := d.R.QueryContext(ctx, `SELECT id, storage_key FROM files WHERE deleted_at IS NOT NULL AND deleted_at < ? LIMIT 500`, db.Time(time.Now().Add(-7*24*time.Hour)))
+	if err != nil {
+		return err
+	}
+	type row struct{ id, key string }
+	var doomed []row
+	for rows.Next() {
+		var x row
+		if err := rows.Scan(&x.id, &x.key); err == nil {
+			doomed = append(doomed, x)
+		}
+	}
+	rows.Close()
+	for _, x := range doomed {
+		if err := st.Delete(x.key); err != nil {
+			return err
+		}
+		if err := d.Tx(ctx, func(tx *sql.Tx) error { _, err := tx.Exec(`DELETE FROM files WHERE id = ?`, x.id); return err }); err != nil {
+			return err
+		}
+	}
 	return nil
 }

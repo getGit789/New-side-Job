@@ -86,13 +86,17 @@ func CreateSession(ctx context.Context, tx *sql.Tx, userID, ip, userAgent string
 
 type User struct {
 	ID, Email, Name string
+	Role            string // owner | staff | client
+	WorkspaceID     string
 }
 
 // UserBySession resolves a cookie value to a user; ok is false for missing or expired sessions.
 func UserBySession(ctx context.Context, d *db.DB, token string) (u User, ok bool, err error) {
 	var expires string
-	err = d.R.QueryRowContext(ctx, `SELECT u.id, u.email, u.name, s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`,
-		HashToken(token)).Scan(&u.ID, &u.Email, &u.Name, &expires)
+	err = d.R.QueryRowContext(ctx, `SELECT u.id, u.email, u.name, m.role, m.workspace_id, s.expires_at
+		FROM sessions s JOIN users u ON u.id = s.user_id JOIN memberships m ON m.user_id = u.id
+		WHERE s.token_hash = ? ORDER BY m.created_at LIMIT 1`,
+		HashToken(token)).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.WorkspaceID, &expires)
 	if err == sql.ErrNoRows {
 		return User{}, false, nil
 	}
