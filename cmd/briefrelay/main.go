@@ -3,6 +3,8 @@
 //	briefrelay serve    run the application (default)
 //	briefrelay migrate  apply pending database migrations and exit
 //	briefrelay check    preflight: verify the environment without starting
+//	briefrelay backup FILE.tar.gz   snapshot the database and uploaded files (safe while running)
+//	briefrelay restore FILE.tar.gz  unpack a backup into an empty data directory
 //	briefrelay version
 package main
 
@@ -20,6 +22,7 @@ import (
 	"time"
 
 	"briefrelay/internal/auth"
+	"briefrelay/internal/backup"
 	"briefrelay/internal/config"
 	"briefrelay/internal/db"
 	"briefrelay/internal/jobs"
@@ -53,8 +56,14 @@ func main() {
 		run = migrate
 	case "check":
 		run = check
+	case "backup", "restore":
+		if len(os.Args) < 3 {
+			fmt.Fprintf(os.Stderr, "usage: briefrelay %s FILE.tar.gz\n", cmd)
+			os.Exit(2)
+		}
+		run = func(cfg config.Config, log *slog.Logger) error { return backupCmd(cfg, cmd, os.Args[2]) }
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command %q (serve | migrate | check | version)\n", cmd)
+		fmt.Fprintf(os.Stderr, "unknown command %q (serve | migrate | check | backup | restore | version)\n", cmd)
 		os.Exit(2)
 	}
 	if err := run(cfg, log); err != nil {
@@ -114,6 +123,40 @@ func check(cfg config.Config, log *slog.Logger) error {
 		return errors.New("preflight failed")
 	}
 	fmt.Println("Preflight passed.")
+	return nil
+}
+
+func backupCmd(cfg config.Config, cmd, file string) error {
+	if cmd == "restore" {
+		f, err := os.Open(file)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if err := backup.Restore(f, cfg.DataDir); err != nil {
+			return err
+		}
+		fmt.Printf("restored %s into %s\n", file, cfg.DataDir)
+		return nil
+	}
+	d, err := db.Open(cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	f, err := os.OpenFile(file, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	if err := backup.Write(context.Background(), d, cfg.FilesDir, f); err != nil {
+		f.Close()
+		os.Remove(file)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	fmt.Printf("backup written to %s\n", file)
 	return nil
 }
 

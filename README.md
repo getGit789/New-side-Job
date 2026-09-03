@@ -18,10 +18,14 @@ Open http://127.0.0.1:8080 and the setup page creates the owner account. Setup t
 | `briefrelay serve` | web server + background worker + scheduler (default) |
 | `briefrelay check` | preflight: data dir, database, migrations, mail, proxy settings |
 | `briefrelay migrate` | apply pending migrations and exit |
+| `briefrelay backup FILE.tar.gz` | consistent snapshot of the database and uploaded files; safe while running |
+| `briefrelay restore FILE.tar.gz` | unpack a backup into an empty data directory |
 | `briefrelay version` | print the build version |
-| `GET /healthz` | JSON readiness for database, storage, jobs, mail; 503 when degraded |
+| `GET /healthz` | JSON readiness for application, database, storage, jobs, mail; 503 when degraded |
 
-## What works today (Phases 3 and 4)
+Backup, restore, update and rollback steps: [docs/operations.md](docs/operations.md).
+
+## What works today (Phases 3 to 5)
 
 Owner and staff: clients and contacts, projects with staff assignment, milestones with client visibility,
 deliverables with immutable file or link versions, share and withdraw, comments (internal or client-visible),
@@ -35,11 +39,16 @@ Everyone: in-app notifications plus queued email with dedupe keys, so no event i
 
 Rules the server enforces are in [docs/product-contract.md](docs/product-contract.md).
 
+Hardening (Phase 5): a permission-matrix test covers every route for every role, a seeded benchmark checks the
+performance budgets ([docs/performance.md](docs/performance.md)), backup/restore and upgrade drills run in the
+test suite, and the release gates are listed in [docs/release-checklist.md](docs/release-checklist.md).
+
 ## Development
 
 ```bash
 make test      # go test -race ./...
 make lint      # gofmt, go vet, govulncheck
+make perf      # seeded benchmark (500 clients / 5k projects / 25k versions / 100k events) against the p95 budgets
 make release   # static linux binaries + SHA256SUMS + dependency list in ./dist
 ```
 

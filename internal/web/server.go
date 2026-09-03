@@ -288,7 +288,7 @@ func (s *Server) parseForm(w http.ResponseWriter, r *http.Request) (map[string]s
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
-	checks := map[string]string{"database": "ok", "storage": "ok", "jobs": "ok", "mail": "ok"}
+	checks := map[string]string{"application": "ok", "database": "ok", "storage": "ok", "jobs": "ok", "mail": "ok"}
 	healthy := true
 	fail := func(k string, err error) { checks[k] = "fail: " + err.Error(); healthy = false }
 	if err := s.db.R.PingContext(ctx); err != nil {

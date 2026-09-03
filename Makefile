@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS  = -s -w -X briefrelay/internal/web.Version=$(VERSION)
 GO      ?= go
 
-.PHONY: build run test lint check release clean
+.PHONY: build run test lint check perf release clean
 
 build:
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o dist/briefrelay ./cmd/briefrelay
@@ -12,6 +12,10 @@ run: build
 
 test:
 	$(GO) test -race -count=1 ./...
+
+# Seeds 500 clients / 5,000 projects / 25,000 versions / 100,000 events and checks p95 budgets (plan §6.1).
+perf:
+	BRIEFRELAY_PERF=1 $(GO) test -count=1 -run TestPerformanceBudgets -v ./internal/web/
 
 lint:
 	test -z "$$(gofmt -l .)" || (gofmt -l . && echo "run gofmt -w ." && exit 1)
