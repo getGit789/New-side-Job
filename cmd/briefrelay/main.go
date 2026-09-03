@@ -5,6 +5,7 @@
 //	briefrelay check    preflight: verify the environment without starting
 //	briefrelay backup FILE.tar.gz   snapshot the database and uploaded files (safe while running)
 //	briefrelay restore FILE.tar.gz  unpack a backup into an empty data directory
+//	briefrelay seed     load the sample workspace into an empty install (demo credentials)
 //	briefrelay version
 package main
 
@@ -27,6 +28,7 @@ import (
 	"briefrelay/internal/db"
 	"briefrelay/internal/jobs"
 	"briefrelay/internal/mail"
+	"briefrelay/internal/seed"
 	"briefrelay/internal/storage"
 	"briefrelay/internal/web"
 )
@@ -56,6 +58,8 @@ func main() {
 		run = migrate
 	case "check":
 		run = check
+	case "seed":
+		run = seedCmd
 	case "backup", "restore":
 		if len(os.Args) < 3 {
 			fmt.Fprintf(os.Stderr, "usage: briefrelay %s FILE.tar.gz\n", cmd)
@@ -63,7 +67,7 @@ func main() {
 		}
 		run = func(cfg config.Config, log *slog.Logger) error { return backupCmd(cfg, cmd, os.Args[2]) }
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command %q (serve | migrate | check | backup | restore | version)\n", cmd)
+		fmt.Fprintf(os.Stderr, "unknown command %q (serve | migrate | check | seed | backup | restore | version)\n", cmd)
 		os.Exit(2)
 	}
 	if err := run(cfg, log); err != nil {
@@ -123,6 +127,26 @@ func check(cfg config.Config, log *slog.Logger) error {
 		return errors.New("preflight failed")
 	}
 	fmt.Println("Preflight passed.")
+	return nil
+}
+
+func seedCmd(cfg config.Config, log *slog.Logger) error {
+	d, err := db.Open(cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	if _, err := d.Migrate(context.Background()); err != nil {
+		return err
+	}
+	st, err := storage.NewLocal(cfg.FilesDir)
+	if err != nil {
+		return err
+	}
+	if err := seed.Seed(context.Background(), d, st, web.Version); err != nil {
+		return err
+	}
+	fmt.Printf("sample workspace loaded. Log in as %s / %s (staff: %s, client: %s)\n", seed.OwnerEmail, seed.OwnerPassword, seed.StaffEmail, seed.ClientEmail)
 	return nil
 }
 
@@ -193,6 +217,16 @@ func serve(cfg config.Config, log *slog.Logger) error {
 	})
 	q.Handle("files.cleanup", func(ctx context.Context, _ []byte) error { return cleanupFiles(ctx, d, st) })
 	q.Every("files.cleanup", time.Hour)
+	if cfg.IsDemo() { // plan §11: synthetic data, fixed published reset interval
+		if err := seed.Seed(ctx, d, st, web.Version); err != nil && !errors.Is(err, seed.ErrInstalled) {
+			return err
+		}
+		q.Handle("demo.reset", func(ctx context.Context, _ []byte) error {
+			log.Info("demo reset")
+			return seed.Reset(ctx, d, st, web.Version)
+		})
+		q.Every("demo.reset", time.Hour)
+	}
 
 	s, err := web.New(cfg, d, q, m, st, log)
 	if err != nil {

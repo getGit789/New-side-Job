@@ -5,4 +5,17 @@
   <p><label for="password">Password</label><br><input id="password" name="password" type="password" required autocomplete="current-password"></p>
   <button type="submit">Log in</button>
 </form>
+<p><a href="/password/forgot">Forgot your password?</a></p>
+{{if .Demo}}
+<h2>Sample accounts</h2>
+<table>
+<thead><tr><th>Role</th><th>Email</th><th>Password</th></tr></thead>
+<tbody>
+<tr><td>Agency owner</td><td>owner@demo.test</td><td>demo-owner-password</td></tr>
+<tr><td>Staff</td><td>staff@demo.test</td><td>demo-staff-password</td></tr>
+<tr><td>Client</td><td>client@demo.test</td><td>demo-client-password</td></tr>
+</tbody>
+</table>
+<p>Owner path: clients, projects, deliverables, invoices, activity. Client path: review the logo, comment, approve, sign off.</p>
+{{end}}
 {{end}}

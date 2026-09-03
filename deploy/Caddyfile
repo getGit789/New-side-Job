@@ -1,0 +1,8 @@
+# Reverse proxy with automatic HTTPS. Replace the host name; set BRIEFRELAY_TRUST_PROXY=true in .env.
+portal.example.com {
+	reverse_proxy 127.0.0.1:8080
+	request_body {
+		max_size 60MB
+	}
+	encode gzip
+}

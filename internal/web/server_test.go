@@ -55,7 +55,8 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.limiter = newIPLimiter(1000, 1000) // the journey test fires many requests from one IP
+	s.limiter = newIPLimiter(1000, 1000) // the journey tests fire many requests from one IP
+	s.authLimit = newIPLimiter(1000, 1000)
 	ts := httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)
 	return &env{t: t, ts: ts, db: d}

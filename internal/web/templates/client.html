@@ -14,6 +14,7 @@
   <button type="submit">Save</button>
 </form>
 {{if .Client.ArchivedAt.Valid}}<form method="post" action="/clients/{{.Client.ID}}/unarchive"><button type="submit">Unarchive</button></form>
+<form method="post" action="/clients/{{.Client.ID}}/delete" onsubmit="return confirm('Delete this client, all its projects, files and portal accounts? This cannot be undone.')"><button type="submit">Delete permanently</button> <small>Export each project first if you need the record.</small></form>
 {{else}}<form method="post" action="/clients/{{.Client.ID}}/archive"><button type="submit">Archive client</button> <small>All projects must be closed first.</small></form>{{end}}
 </details>
 {{end}}

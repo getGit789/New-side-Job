@@ -67,7 +67,7 @@ var funcs = template.FuncMap{
 func New(cfg config.Config, d *db.DB, q *jobs.Queue, m *mail.Mailer, st *storage.Local, log *slog.Logger) (*Server, error) {
 	s := &Server{cfg: cfg, db: d, q: q, mail: m, store: st, log: log, pages: map[string]*template.Template{},
 		limiter: newIPLimiter(20, 40), authLimit: newIPLimiter(0.1, 5), dummyHash: auth.HashPassword("dummy")}
-	for _, p := range []string{"setup", "login", "home", "error", "clients", "client", "projects", "project", "deliverable", "team", "invite", "activity", "notifications", "portal_project", "portal_deliverable", "portal_intake"} {
+	for _, p := range []string{"setup", "login", "home", "error", "clients", "client", "projects", "project", "deliverable", "team", "invite", "activity", "notifications", "portal_project", "portal_deliverable", "portal_intake", "account", "forgot", "reset"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/layout.html", "templates/"+p+".html")
 		if err != nil {
 			return nil, err
@@ -98,6 +98,8 @@ func (s *Server) Handler() http.Handler {
 	s.adminRoutes(mux)
 	s.notificationRoutes(mux)
 	s.portalRoutes(mux)
+	s.accountRoutes(mux)
+	s.exportRoutes(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		s.errorPage(w, r, http.StatusNotFound, "That page does not exist.")
 	})
@@ -172,7 +174,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 func (s *Server) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := s.clientIP(r)
-		authPath := r.Method == http.MethodPost && (r.URL.Path == "/login" || r.URL.Path == "/setup" || strings.HasPrefix(r.URL.Path, "/invite/"))
+		authPath := r.Method == http.MethodPost && (r.URL.Path == "/login" || r.URL.Path == "/setup" || strings.HasPrefix(r.URL.Path, "/invite/") || strings.HasPrefix(r.URL.Path, "/password/"))
 		if !s.limiter.allow(ip) || (authPath && !s.authLimit.allow(ip)) {
 			w.Header().Set("Retry-After", "60")
 			s.errorPage(w, r, http.StatusTooManyRequests, "Too many requests. Please wait a minute and try again.")
@@ -238,6 +240,7 @@ type view struct {
 	Role    domain.Role
 	IsOwner bool
 	Unread  int
+	Demo    bool
 	Title   string
 	Error   string
 	Form    map[string]string
@@ -248,6 +251,7 @@ type view struct {
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page string, v view) {
 	v.User = s.user(r)
+	v.Demo = s.cfg.IsDemo()
 	if v.User != nil {
 		v.Role = domain.Role(v.User.Role)
 		v.IsOwner = v.Role == domain.RoleOwner

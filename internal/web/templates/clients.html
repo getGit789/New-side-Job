@@ -7,6 +7,14 @@
   <button type="submit">Search</button>
 </form>
 {{if $.IsOwner}}
+<p><a href="/clients/export.csv">Export clients (CSV)</a></p>
+<details>
+<summary>Import clients (CSV)</summary>
+<form method="post" action="/clients/import" enctype="multipart/form-data">
+  <p><label for="csv">CSV file with columns: name, email, phone, contact_name, contact_email, contact_title</label><br><input id="csv" name="file" type="file" accept=".csv,text/csv" required></p>
+  <button type="submit">Import</button> <small>Existing clients are kept; new contacts are added. Nothing is overwritten.</small>
+</form>
+</details>
 <details>
 <summary>New client</summary>
 <form method="post" action="/clients">

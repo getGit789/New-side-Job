@@ -1,0 +1,10 @@
+{{define "content"}}
+<h1>Reset password</h1>
+{{if not .Message}}
+<form method="post" action="/password/forgot">
+  <p><label for="email">Email</label><br><input id="email" name="email" type="email" required autocomplete="username"></p>
+  <button type="submit">Send reset link</button>
+</form>
+{{end}}
+<p><a href="/login">Back to log in</a></p>
+{{end}}

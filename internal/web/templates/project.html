@@ -19,6 +19,8 @@
 
 {{if $p.Closed}}
 <p>This project is closed and read-only.</p>
+{{if $.IsOwner}}<p><a href="/projects/{{$p.ID}}/export.zip">Export hand-over record (zip)</a></p>
+<form method="post" action="/projects/{{$p.ID}}/delete" onsubmit="return confirm('Delete this project and its files permanently?')"><button type="submit">Delete permanently</button></form>{{end}}
 {{if $.IsOwner}}<form method="post" action="/projects/{{$p.ID}}/reopen">
   <label for="reason">Reason to reopen</label> <input id="reason" name="reason" required minlength="3" maxlength="1000">
   <button type="submit">Reopen project</button></form>{{end}}
@@ -30,6 +32,7 @@
   <p><label for="summary">Summary</label><br><textarea id="summary" name="summary" rows="3" maxlength="10000">{{$p.Summary}}</textarea></p>
   <button type="submit">Save</button>
 </form>
+{{if $.IsOwner}}<p><a href="/projects/{{$p.ID}}/export.zip">Export hand-over record (zip)</a></p>{{end}}
 <form method="post" action="/projects/{{$p.ID}}/close"><button type="submit">Close project</button> <small>Makes it read-only. The owner can reopen it.</small></form>
 </details>
 {{end}}

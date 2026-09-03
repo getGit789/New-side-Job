@@ -80,6 +80,10 @@ func Load() (Config, error) {
 	if err != nil {
 		errs = append(errs, errors.New("BRIEFRELAY_SMTP_PORT must be an integer"))
 	}
+	if c.IsDemo() { // plan §11: no real outbound email, small uploads, nothing reusable in production
+		c.SMTP = SMTP{From: c.SMTP.From}
+		c.MaxUploadMB = min(c.MaxUploadMB, 5)
+	}
 	return c, errors.Join(errs...)
 }
 

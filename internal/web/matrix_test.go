@@ -20,6 +20,14 @@ var matrix = map[string][5]string{
 	"GET /{$}":                 {"ok", "ok", "ok", "ok", "ok"},
 	"GET /notifications":       {"ok", "ok", "ok", "ok", "ok"},
 	"POST /notifications/read": {"ok", "ok", "ok", "ok", "ok"},
+	"GET /account":             {"ok", "ok", "ok", "ok", "ok"},
+	"POST /account/password":   {"ok", "ok", "ok", "ok", "ok"},
+
+	"GET /clients/export.csv":       {"ok", "403", "403", "403", "403"},
+	"POST /clients/import":          {"ok", "403", "403", "403", "403"},
+	"POST /clients/{id}/delete":     {"ok", "403", "403", "403", "403"},
+	"GET /projects/{id}/export.zip": {"ok", "403", "403", "403", "403"},
+	"POST /projects/{id}/delete":    {"ok", "403", "403", "403", "403"},
 
 	"GET /clients":                              {"ok", "ok", "ok", "403", "403"},
 	"POST /clients":                             {"ok", "403", "403", "403", "403"},
@@ -76,6 +84,7 @@ var matrix = map[string][5]string{
 var publicRoutes = map[string]bool{
 	"GET /healthz": true, "GET /setup": true, "POST /setup": true, "GET /login": true, "POST /login": true,
 	"POST /logout": true, "GET /invite/{token}": true, "POST /invite/{token}": true, "/": true,
+	"GET /password/forgot": true, "POST /password/forgot": true, "GET /password/reset/{token}": true, "POST /password/reset/{token}": true,
 }
 
 func TestPermissionMatrix(t *testing.T) {
@@ -109,6 +118,11 @@ func TestPermissionMatrix(t *testing.T) {
 	ctidB := e.scalar(`SELECT id FROM client_contacts WHERE email = 'bea@b.test'`)
 	pid := lastSegment(o.want(o.post("/projects", url.Values{"client_org_id": {cid}, "name": {"Project A"}}), 303, "project A"))
 	o.want(o.post("/projects", url.Values{"client_org_id": {cidB}, "name": {"Project B"}}), 303, "project B")
+	// Records that only the two permanent-delete routes touch.
+	pidDel := lastSegment(o.want(o.post("/projects", url.Values{"client_org_id": {cid}, "name": {"Done"}}), 303, "closed project"))
+	o.want(o.post("/projects/"+pidDel+"/close", nil), 303, "close it")
+	cidDel := lastSegment(o.want(o.post("/clients", url.Values{"name": {"Gone Co"}}), 303, "archived org"))
+	o.want(o.post("/clients/"+cidDel+"/archive", nil), 303, "archive it")
 	o.want(o.post("/projects/"+pid+"/milestones", url.Values{"title": {"M0"}, "visibility": {"client"}}), 303, "milestone")
 	o.want(o.post("/projects/"+pid+"/milestones", url.Values{"title": {"M1"}, "visibility": {"client"}}), 303, "milestone")
 	mids := []string{e.scalar(`SELECT id FROM milestones WHERE title = 'M0'`), e.scalar(`SELECT id FROM milestones WHERE title = 'M1'`)}
@@ -138,6 +152,10 @@ func TestPermissionMatrix(t *testing.T) {
 			col = 1
 		}
 		switch {
+		case pattern == "POST /clients/{id}/delete":
+			return cidDel
+		case pattern == "POST /projects/{id}/delete":
+			return pidDel
 		case strings.Contains(pattern, "/clients/{id}"):
 			return cid
 		case strings.Contains(pattern, "/projects/{id}"):

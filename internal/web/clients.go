@@ -98,7 +98,11 @@ func (s *Server) clientsList(w http.ResponseWriter, r *http.Request) {
 	if len(d.Clients) > limit {
 		d.Clients, d.HasNext = d.Clients[:limit], true
 	}
-	s.render(w, r, http.StatusOK, "clients", view{Title: "Clients", Data: d})
+	msg := ""
+	if v := r.URL.Query().Get("imported"); v != "" {
+		msg = "Imported " + v + "."
+	}
+	s.render(w, r, http.StatusOK, "clients", view{Title: "Clients", Message: msg, Data: d})
 }
 
 func escapeLike(s string) string {

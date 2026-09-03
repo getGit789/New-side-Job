@@ -31,7 +31,7 @@ manual ones are done once per release candidate and ticked here with the date an
 | Email rendering and retry | Configure real SMTP. Invite; check the mail. Stop SMTP; invite; see retries in `/healthz` job stats; start SMTP; job completes once. | |
 | Upload and download limits | Upload at `BRIEFRELAY_MAX_UPLOAD_MB`; one byte over is refused with a clear message. HTML and SVG uploads refused. Downloads arrive as attachments. | |
 | Recovery | Kill the server mid-upload. Restart. No orphan file row; temp file removed by the hourly job (or `files.cleanup`). | |
-| Demo reset and anti-abuse | Phase 6. | |
+| Demo reset and anti-abuse | `BRIEFRELAY_ENV=demo`: sample logins shown, no mail, 5 MB uploads, password change refused, reset after one hour restores the sample data. | |
 | Clean-package audit | `tar tzf` the release archive: binary, README, `.env.example`, docs only. No `.env`, no database, no personal data. `SHA256SUMS` matches. | |
 
 ## Release blockers (any one stops the release)
@@ -47,6 +47,5 @@ manual ones are done once per release candidate and ticked here with the date an
 ## Still open before the marketplace release
 
 - Independent security review (plan §6.3): not yet commissioned.
-- Project archive export and permanent deletion paths (Phase 6).
-- Password reset and re-authentication for owner security changes (Epic 2): not built. Owners change
-  passwords through a database reset today; this must be closed before launch.
+- Listing assets (plan §12): video, screenshots, listing copy. Not code; produced from the demo.
+- Workspace settings page (name, logo, time zone, default currency; plan §5.4): not built. Not needed for the core flow.

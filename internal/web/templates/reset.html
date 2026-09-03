@@ -1,0 +1,7 @@
+{{define "content"}}
+<h1>Choose a new password</h1>
+<form method="post" action="">
+  <p><label for="password">New password (at least 12 characters)</label><br><input id="password" name="password" type="password" required minlength="12" autocomplete="new-password"></p>
+  <button type="submit">Set password</button> <small>Every existing session is logged out.</small>
+</form>
+{{end}}

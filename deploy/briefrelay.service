@@ -1,0 +1,24 @@
+# systemd unit. Install: copy to /etc/systemd/system/, then: systemctl enable --now briefrelay
+[Unit]
+Description=BriefRelay client approval portal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=briefrelay
+Group=briefrelay
+WorkingDirectory=/opt/briefrelay
+EnvironmentFile=/opt/briefrelay/.env
+ExecStart=/opt/briefrelay/briefrelay serve
+Restart=on-failure
+RestartSec=5
+# Hardening: the process only needs its own data directory.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/briefrelay/data
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -73,8 +73,9 @@ Mail shows "not configured" rather than failing when `BRIEFRELAY_SMTP_HOST` is e
 | Client contact removed | loses portal access at once (sessions deleted); their comments and decisions stay |
 | Staff removed | loses access at once; audit rows keep their id |
 
-Not built yet (planned for Phase 6): project archive export, permanent client-organization deletion,
-account self-deletion. Until then, deletion of a whole client is a manual database operation; back up first.
+Owner actions in the app: export a project as a zip (client-visible record, decisions, sign-off, audit, files),
+delete a closed project, delete an archived client with its projects, files and portal accounts. Deleted blobs are
+purged by the hourly job after 7 days, so a backup taken within a week still holds them.
 
 ## Logs
 

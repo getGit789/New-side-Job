@@ -1,0 +1,12 @@
+{{define "content"}}
+<h1>Account</h1>
+<p>{{.User.Name}} · {{.User.Email}} · {{human .User.Role}}</p>
+<h2>Change password</h2>
+{{if .Demo}}<p>Passwords cannot be changed in the demo.</p>{{else}}
+<form method="post" action="/account/password">
+  <p><label for="current">Current password</label><br><input id="current" name="current" type="password" required autocomplete="current-password"></p>
+  <p><label for="password">New password (at least 12 characters)</label><br><input id="password" name="password" type="password" required minlength="12" autocomplete="new-password"></p>
+  <button type="submit">Change password</button> <small>Other devices are logged out.</small>
+</form>
+{{end}}
+{{end}}
