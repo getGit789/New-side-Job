@@ -1,0 +1,7 @@
+{{define "content"}}
+<h1>Notifications</h1>
+{{if .Data}}
+<form method="post" action="/notifications/read"><button type="submit">Mark all as read</button></form>
+<ul>{{range .Data}}<li>{{if not .Read}}<strong>{{end}}<a href="{{.URL}}">{{.Title}}</a>{{if not .Read}}</strong>{{end}} <small>{{date .CreatedAt}}</small></li>{{end}}</ul>
+{{else}}<p>Nothing yet.</p>{{end}}
+{{end}}

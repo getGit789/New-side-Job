@@ -70,11 +70,15 @@ func (s *Server) teamShow(w http.ResponseWriter, r *http.Request) {
 }
 
 // createInvitation writes the invitation and queues the email inside tx. Used for staff now and client contacts in Phase 4.
-func (s *Server) createInvitation(r *http.Request, tx *sql.Tx, email, role, inviterName, workspaceName string) (id string, err error) {
+func (s *Server) createInvitation(r *http.Request, tx *sql.Tx, email, role, contactID, inviterName, workspaceName string) (id string, err error) {
 	u := s.user(r)
 	id, token, now := db.NewID(), auth.NewToken(), time.Now()
-	if _, err := tx.Exec(`INSERT INTO invitations (id, workspace_id, email, role, token_hash, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, u.WorkspaceID, email, role, auth.HashToken(token), u.ID, db.Time(now), db.Time(now.Add(invitationTTL))); err != nil {
+	var contact any
+	if contactID != "" {
+		contact = contactID
+	}
+	if _, err := tx.Exec(`INSERT INTO invitations (id, workspace_id, email, role, contact_id, token_hash, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, u.WorkspaceID, email, role, contact, auth.HashToken(token), u.ID, db.Time(now), db.Time(now.Add(invitationTTL))); err != nil {
 		return "", err
 	}
 	link := s.cfg.BaseURL.String() + "/invite/" + token
@@ -108,7 +112,7 @@ func (s *Server) teamInvite(w http.ResponseWriter, r *http.Request) {
 		if err := tx.QueryRow(`SELECT name FROM workspaces WHERE id = ?`, u.WorkspaceID).Scan(&ws); err != nil {
 			return err
 		}
-		_, err := s.createInvitation(r, tx, email, "staff", u.Name, ws)
+		_, err := s.createInvitation(r, tx, email, "staff", "", u.Name, ws)
 		return err
 	})
 	if err != nil {
@@ -229,7 +233,8 @@ func (s *Server) inviteAccept(w http.ResponseWriter, r *http.Request) {
 			return errNotFound
 		}
 		var wsID string
-		if err := tx.QueryRow(`SELECT workspace_id FROM invitations WHERE id = ?`, invID).Scan(&wsID); err != nil {
+		var contactID sql.NullString
+		if err := tx.QueryRow(`SELECT workspace_id, contact_id FROM invitations WHERE id = ?`, invID).Scan(&wsID, &contactID); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(`INSERT INTO users (id, email, name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, userID, email, f["name"], auth.HashPassword(f["password"]), now, now); err != nil {
@@ -238,9 +243,13 @@ func (s *Server) inviteAccept(w http.ResponseWriter, r *http.Request) {
 		if _, err := tx.Exec(`INSERT INTO memberships (workspace_id, user_id, role, created_at) VALUES (?, ?, ?, ?)`, wsID, userID, role, now); err != nil {
 			return err
 		}
-		if role == "client" { // Phase 4 links the contact row; the column exists so the link is one UPDATE.
-			if _, err := tx.Exec(`UPDATE client_contacts SET user_id = ? WHERE email = ? AND user_id IS NULL AND removed_at IS NULL`, userID, email); err != nil {
+		if role == "client" {
+			res, err := tx.Exec(`UPDATE client_contacts SET user_id = ? WHERE id = ? AND user_id IS NULL AND removed_at IS NULL`, userID, contactID.String)
+			if err != nil {
 				return err
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				return errNotFound // contact was removed after the invitation went out
 			}
 		}
 		if err := db.Audit(r.Context(), tx, wsID, userID, "invitation.accepted", "invitation", invID, ip, fmt.Sprintf(`{"role":%q}`, role)); err != nil {

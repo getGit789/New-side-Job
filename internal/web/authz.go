@@ -53,6 +53,26 @@ func (s *Server) requireStaff(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (s *Server) requireUser(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.user(r) == nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		h(w, r)
+	}
+}
+
+func (s *Server) requireClient(h http.HandlerFunc) http.HandlerFunc {
+	return s.requireUser(func(w http.ResponseWriter, r *http.Request) {
+		if s.role(r) != domain.RoleClient {
+			s.errorPage(w, r, http.StatusForbidden, "This area is for clients.")
+			return
+		}
+		h(w, r)
+	})
+}
+
 func (s *Server) requireOwner(h http.HandlerFunc) http.HandlerFunc {
 	return s.requireStaff(func(w http.ResponseWriter, r *http.Request) {
 		if s.role(r) != domain.RoleOwner {
@@ -84,8 +104,11 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 
 // projectScope returns the SQL condition limiting projects (aliased p) to what the user may see.
 func projectScope(u *auth.User) (string, []any) {
-	if u.Role == string(domain.RoleOwner) {
+	switch domain.Role(u.Role) {
+	case domain.RoleOwner:
 		return "p.workspace_id = ?", []any{u.WorkspaceID}
+	case domain.RoleClient: // contract §6.1: only the contact's own organization, and only while the contact is active
+		return "p.workspace_id = ? AND p.client_org_id IN (SELECT client_org_id FROM client_contacts WHERE user_id = ? AND removed_at IS NULL)", []any{u.WorkspaceID, u.ID}
 	}
 	return "p.workspace_id = ? AND p.id IN (SELECT project_id FROM project_members WHERE user_id = ?)", []any{u.WorkspaceID, u.ID}
 }

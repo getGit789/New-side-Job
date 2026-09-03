@@ -4,7 +4,18 @@
 <h1>{{$p.Name}} <small>({{$p.Status}})</small></h1>
 <p>Client: <a href="/clients/{{$p.ClientOrgID}}">{{$p.ClientName}}</a> · Created {{date $p.CreatedAt}}{{if $p.Closed}} · Closed {{date $p.ClosedAt.String}}{{end}}</p>
 {{if $p.Summary}}<p>{{$p.Summary}}</p>{{end}}
-<p>Intake: {{.IntakeStatus}}</p>
+<h2>Brief (intake)</h2>
+{{if .Intake}}
+<p>Version {{.Intake.Version}} · {{if eq .Intake.Status "submitted"}}submitted {{date .Intake.SubmittedAt}} by {{.Intake.SubmittedBy}}{{else}}draft, not submitted yet{{end}}</p>
+{{if eq .Intake.Status "submitted"}}<dl>{{range .IntakeFields}}{{$v := index $.Data.Intake.Answers .Key}}{{if $v}}<dt>{{.Label}}</dt><dd>{{$v}}</dd>{{end}}{{end}}</dl>{{end}}
+{{else}}<p>The client has not started the brief.</p>{{end}}
+{{if .IntakeComments}}<ul>{{range .IntakeComments}}<li>[{{.Visibility}}] {{.Author}} ({{date .CreatedAt}}): {{.Body}}</li>{{end}}</ul>{{end}}
+{{if not $p.Closed}}
+<form method="post" action="/projects/{{$p.ID}}/intake/comment">
+  <label for="clarify">Ask the client a question about the brief</label> <input id="clarify" name="body" required maxlength="10000">
+  <button type="submit">Send</button>
+</form>
+{{end}}
 
 {{if $p.Closed}}
 <p>This project is closed and read-only.</p>
@@ -113,6 +124,20 @@
   <button type="submit">Add invoice</button>
 </form>
 </details>
+{{end}}
+
+<h2>Handoff</h2>
+{{with .Handoff}}
+{{if .Rows}}
+<table>
+<thead><tr><th>Required deliverable</th><th>Latest</th><th>Ready</th>{{if and $.IsOwner (not $p.Closed)}}<th>Waive</th>{{end}}</tr></thead>
+<tbody>{{range .Rows}}<tr><td><a href="/deliverables/{{.ID}}">{{.Title}}</a></td><td>{{if .LatestNumber}}v{{.LatestNumber}} {{human .LatestState}}{{else}}no version{{end}}{{if .Waiver}} · waived: {{.Waiver}}{{end}}</td><td>{{if .Satisfied}}yes{{else}}no{{end}}</td>
+{{if and $.IsOwner (not $p.Closed)}}<td>{{if not .Satisfied}}<form method="post" action="/deliverables/{{.ID}}/waive"><input name="reason" required minlength="3" maxlength="1000" placeholder="Reason" aria-label="Waiver reason"> <button type="submit">Waive</button></form>{{end}}</td>{{end}}
+</tr>{{end}}</tbody>
+</table>
+<p>{{if .Ready}}Ready: the client can sign off.{{else}}Not ready: every required deliverable must be approved or waived.{{end}}</p>
+{{else}}<p>No required deliverables. Mark at least one deliverable as required to enable sign-off.</p>{{end}}
+{{if .Signoffs}}<h3>Sign-offs</h3><ul>{{range .Signoffs}}<li>{{.By}} on {{date .CreatedAt}} <code>{{.Snapshot}}</code></li>{{end}}</ul>{{end}}
 {{end}}
 
 <h2>Activity</h2>

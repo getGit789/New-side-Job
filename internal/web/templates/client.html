@@ -23,7 +23,8 @@
 <table>
 <thead><tr><th>Name</th><th>Email</th><th>Title</th><th>Portal access</th><th></th></tr></thead>
 <tbody>{{range .Contacts}}<tr><td>{{.Name}}</td><td>{{.Email}}</td><td>{{.Title}}</td><td>{{if .UserID.Valid}}active{{else}}not invited yet{{end}}</td>
-<td><form method="post" action="/clients/{{$.Data.Client.ID}}/contacts/{{.ID}}/remove"><button type="submit">Remove</button></form></td></tr>{{end}}</tbody>
+<td>{{if not .UserID.Valid}}<form method="post" action="/clients/{{$.Data.Client.ID}}/contacts/{{.ID}}/invite" style="display:inline"><button type="submit">Send portal invite</button></form>{{end}}
+<form method="post" action="/clients/{{$.Data.Client.ID}}/contacts/{{.ID}}/remove" style="display:inline"><button type="submit">Remove</button></form></td></tr>{{end}}</tbody>
 </table>
 {{else}}<p>No contacts yet.</p>{{end}}
 <details>
@@ -34,7 +35,6 @@
   <p><label for="ctitle">Title</label><br><input id="ctitle" name="title" maxlength="200"></p>
   <button type="submit">Add contact</button>
 </form>
-<p><small>Inviting contacts into the portal arrives in the next release.</small></p>
 </details>
 
 <h2>Projects</h2>

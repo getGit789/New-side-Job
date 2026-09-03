@@ -1,0 +1,21 @@
+{{define "content"}}
+{{with .Data}}
+{{$p := .Project}}
+<p><a href="/portal/projects/{{$p.ID}}">← {{$p.Name}}</a></p>
+<h1>Project brief</h1>
+{{if .Intake.ID}}<p>Version {{.Intake.Version}} · {{if eq .Intake.Status "submitted"}}submitted {{date .Intake.SubmittedAt}}. Saving again starts a new version.{{else}}draft{{end}}</p>{{end}}
+{{if .Comments}}<h2>Questions from the team</h2><ul>{{range .Comments}}<li>{{.Author}} ({{date .CreatedAt}}): {{.Body}}</li>{{end}}</ul>
+{{if .Editable}}<form method="post" action="/portal/projects/{{$p.ID}}/intake/comment"><label for="reply">Reply</label> <input id="reply" name="body" required maxlength="10000"> <button type="submit">Send</button></form>{{end}}{{end}}
+{{if .Editable}}
+<form method="post" action="/portal/projects/{{$p.ID}}/intake">
+{{range .Fields}}
+  <p><label for="f-{{.Key}}">{{.Label}}</label><br><textarea id="f-{{.Key}}" name="{{.Key}}" rows="3" maxlength="10000">{{index $.Data.Intake.Answers .Key}}</textarea></p>
+{{end}}
+  <button type="submit" name="action" value="save">Save draft</button>
+  <button type="submit" name="action" value="submit">Submit brief</button>
+</form>
+{{else}}
+<dl>{{range .Fields}}{{$v := index $.Data.Intake.Answers .Key}}{{if $v}}<dt>{{.Label}}</dt><dd>{{$v}}</dd>{{end}}{{end}}</dl>
+{{end}}
+{{end}}
+{{end}}

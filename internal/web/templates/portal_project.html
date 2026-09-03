@@ -1,0 +1,51 @@
+{{define "content"}}
+{{with .Data}}
+{{$p := .Project}}
+<h1>{{$p.Name}}</h1>
+<p>Status: {{$p.Status}}{{if $p.Closed}} · closed {{date $p.ClosedAt.String}}{{end}}</p>
+{{if $p.Summary}}<p>{{$p.Summary}}</p>{{end}}
+
+<h2>Brief</h2>
+<p>{{if .Intake}}{{if eq .Intake.Status "submitted"}}Submitted {{date .Intake.SubmittedAt}}.{{else}}Draft saved.{{end}}{{else}}Not started.{{end}} <a href="/portal/projects/{{$p.ID}}/intake">Open the brief</a></p>
+
+<h2>Progress</h2>
+{{if .Milestones}}
+<table>
+<thead><tr><th>Milestone</th><th>Target</th><th>Status</th><th>Latest update</th></tr></thead>
+<tbody>{{range .Milestones}}<tr><td>{{.Title}}</td><td>{{.TargetDate}}</td><td>{{human .Status}}</td><td>{{.LatestUpdate}}</td></tr>{{end}}</tbody>
+</table>
+{{else}}<p>No milestones shared yet.</p>{{end}}
+
+<h2>Deliverables</h2>
+{{if .Deliverables}}
+<table>
+<thead><tr><th>Deliverable</th><th>Version</th><th>State</th></tr></thead>
+<tbody>{{range .Deliverables}}<tr><td><a href="/portal/deliverables/{{.ID}}">{{.Title}}</a></td><td>v{{.LatestNumber}}</td><td>{{human .LatestState}}</td></tr>{{end}}</tbody>
+</table>
+{{else}}<p>Nothing shared for review yet.</p>{{end}}
+
+<h2>Invoices</h2>
+{{if .Invoices}}
+<table>
+<thead><tr><th>Number</th><th>Amount</th><th>Due</th><th>Status</th><th>Document</th><th>Pay</th></tr></thead>
+<tbody>{{range .Invoices}}<tr><td>{{.Number}}</td><td>{{money .AmountCents .Currency}}</td><td>{{.DueDate}}</td><td>{{.Status}}</td>
+<td>{{if .FileID.Valid}}<a href="/portal/invoices/{{.ID}}/document">Download</a>{{else}}—{{end}}</td>
+<td>{{if .PaymentURL}}<a href="{{.PaymentURL}}" rel="noopener noreferrer">Open payment link</a>{{else}}—{{end}}</td></tr>{{end}}</tbody>
+</table>
+{{else}}<p>No invoices.</p>{{end}}
+
+<h2>Final handoff</h2>
+{{with .Handoff}}
+{{if .Rows}}
+<ul>{{range .Rows}}<li>{{.Title}}: {{if .Satisfied}}{{if .Waiver}}waived{{else}}approved (v{{.LatestNumber}}){{end}}{{else}}{{if .LatestNumber}}v{{.LatestNumber}} {{human .LatestState}}{{else}}not yet shared{{end}}{{end}}</li>{{end}}</ul>
+{{end}}
+{{if .Signoffs}}<p>Signed off by {{(index .Signoffs 0).By}} on {{date (index .Signoffs 0).CreatedAt}}.</p>
+{{else if and .Ready (not $p.Closed)}}
+<form method="post" action="/portal/projects/{{$p.ID}}/signoff">
+  <p>Every required deliverable is approved. Signing off confirms the project is complete and closes it.</p>
+  <button type="submit">Sign off and complete the project</button>
+</form>
+{{else}}<p>Sign-off becomes available when every required deliverable is approved.</p>{{end}}
+{{end}}
+{{end}}
+{{end}}

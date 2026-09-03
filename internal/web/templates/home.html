@@ -15,7 +15,13 @@
 </table>
 {{else}}<p>No projects yet. <a href="/clients">Add a client</a>, then <a href="/projects">create a project</a>.</p>{{end}}
 {{else}}
-<p>Your client portal opens in the next release. Ask the workspace owner if you need something now.</p>
+<h2>Your projects</h2>
+{{if .Recent}}
+<table>
+<thead><tr><th>Project</th><th>Status</th><th>Updated</th></tr></thead>
+<tbody>{{range .Recent}}<tr><td><a href="/portal/projects/{{.ID}}">{{.Name}}</a></td><td>{{.Status}}</td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
+</table>
+{{else}}<p>No projects have been shared with you yet.</p>{{end}}
 {{end}}
 {{end}}
 {{end}}

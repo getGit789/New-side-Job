@@ -67,7 +67,7 @@ var funcs = template.FuncMap{
 func New(cfg config.Config, d *db.DB, q *jobs.Queue, m *mail.Mailer, st *storage.Local, log *slog.Logger) (*Server, error) {
 	s := &Server{cfg: cfg, db: d, q: q, mail: m, store: st, log: log, pages: map[string]*template.Template{},
 		limiter: newIPLimiter(20, 40), authLimit: newIPLimiter(0.1, 5), dummyHash: auth.HashPassword("dummy")}
-	for _, p := range []string{"setup", "login", "home", "error", "clients", "client", "projects", "project", "deliverable", "team", "invite", "activity"} {
+	for _, p := range []string{"setup", "login", "home", "error", "clients", "client", "projects", "project", "deliverable", "team", "invite", "activity", "notifications", "portal_project", "portal_deliverable", "portal_intake"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/layout.html", "templates/"+p+".html")
 		if err != nil {
 			return nil, err
@@ -96,6 +96,8 @@ func (s *Server) Handler() http.Handler {
 	s.deliverableRoutes(mux)
 	s.invoiceRoutes(mux)
 	s.adminRoutes(mux)
+	s.notificationRoutes(mux)
+	s.portalRoutes(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		s.errorPage(w, r, http.StatusNotFound, "That page does not exist.")
 	})
@@ -235,6 +237,7 @@ type view struct {
 	User    *auth.User
 	Role    domain.Role
 	IsOwner bool
+	Unread  int
 	Title   string
 	Error   string
 	Form    map[string]string
@@ -248,6 +251,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page
 	if v.User != nil {
 		v.Role = domain.Role(v.User.Role)
 		v.IsOwner = v.Role == domain.RoleOwner
+		v.Unread = s.unreadCount(r)
 	}
 	if v.Form == nil {
 		v.Form = map[string]string{}
@@ -465,6 +469,11 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !domain.Role(u.Role).IsStaff() {
+		var err error
+		if d.Recent, err = s.listProjects(r, "", "", 100, 0); err != nil {
+			s.fail(w, r, err)
+			return
+		}
 		s.render(w, r, http.StatusOK, "home", view{Title: d.Workspace, Data: d})
 		return
 	}

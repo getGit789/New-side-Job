@@ -42,7 +42,14 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	st, _ := storage.NewLocal(cfg.FilesDir)
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// Any ERROR log (template failure, unexpected SQL error) fails the test.
+	var logBuf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelError}))
+	t.Cleanup(func() {
+		if logBuf.Len() > 0 {
+			t.Errorf("server logged errors:\n%s", logBuf.String())
+		}
+	})
 	q := jobs.New(d, log)
 	s, err := New(cfg, d, q, mail.New(cfg.SMTP, log), st, log)
 	if err != nil {

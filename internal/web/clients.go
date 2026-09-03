@@ -28,6 +28,7 @@ func (s *Server) clientRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /clients/{id}", s.requireOwner(s.clientEdit))
 	mux.HandleFunc("POST /clients/{id}/contacts", s.requireStaff(s.contactCreate))
 	mux.HandleFunc("POST /clients/{id}/contacts/{cid}/remove", s.requireStaff(s.contactRemove))
+	mux.HandleFunc("POST /clients/{id}/contacts/{cid}/invite", s.requireStaff(s.contactInvite))
 	mux.HandleFunc("POST /clients/{id}/archive", s.requireOwner(s.clientArchive))
 	mux.HandleFunc("POST /clients/{id}/unarchive", s.requireOwner(s.clientUnarchive))
 }
@@ -219,6 +220,47 @@ func (s *Server) contactCreate(w http.ResponseWriter, r *http.Request) {
 	id := db.NewID()
 	err = s.db.Tx(r.Context(), func(tx *sql.Tx) error {
 		_, err := tx.Exec(`INSERT INTO client_contacts (id, client_org_id, name, email, title, created_at) VALUES (?, ?, ?, ?, ?, ?)`, id, c.ID, f["name"], email, f["title"], db.Now())
+		return err
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/clients/"+c.ID, http.StatusSeeOther)
+}
+
+// contactInvite sends a single-use portal invitation to a contact (contract §3: O and assigned staff).
+func (s *Server) contactInvite(w http.ResponseWriter, r *http.Request) {
+	c, err := s.loadClient(r, r.PathValue("id"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	u := s.user(r)
+	err = s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+		var email string
+		var userID sql.NullString
+		if err := tx.QueryRow(`SELECT email, user_id FROM client_contacts WHERE id = ? AND client_org_id = ? AND removed_at IS NULL`, r.PathValue("cid"), c.ID).Scan(&email, &userID); err != nil {
+			return errNotFound
+		}
+		if userID.Valid {
+			return invalid("This contact already has portal access.")
+		}
+		var n int
+		if err := tx.QueryRow(`SELECT count(*) FROM users WHERE email = ?`, email).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			return invalid("A user with that email already exists in this workspace.")
+		}
+		if _, err := tx.Exec(`UPDATE invitations SET revoked_at = ? WHERE contact_id = ? AND accepted_at IS NULL AND revoked_at IS NULL`, db.Now(), r.PathValue("cid")); err != nil {
+			return err
+		}
+		var ws string
+		if err := tx.QueryRow(`SELECT name FROM workspaces WHERE id = ?`, u.WorkspaceID).Scan(&ws); err != nil {
+			return err
+		}
+		_, err := s.createInvitation(r, tx, email, "client", r.PathValue("cid"), u.Name, ws)
 		return err
 	})
 	if err != nil {

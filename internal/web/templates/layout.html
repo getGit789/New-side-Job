@@ -10,7 +10,7 @@
 <nav aria-label="Main">
 <a href="/">BriefRelay</a>
 {{if .User}}{{if .Role.IsStaff}} · <a href="/clients">Clients</a> · <a href="/projects">Projects</a>{{end}}{{if .IsOwner}} · <a href="/team">Team</a> · <a href="/activity">Activity</a>{{end}}
- · {{.User.Name}} <form method="post" action="/logout" style="display:inline"><button type="submit">Log out</button></form>{{end}}
+ · <a href="/notifications">Notifications{{if .Unread}} ({{.Unread}}){{end}}</a> · {{.User.Name}} <form method="post" action="/logout" style="display:inline"><button type="submit">Log out</button></form>{{end}}
 </nav>
 </header>
 <main>

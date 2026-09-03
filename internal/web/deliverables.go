@@ -26,6 +26,7 @@ type VersionRow struct {
 	SharedAt, FileID, FileName                                                    sql.NullString
 	FileSize                                                                      sql.NullInt64
 	Decisions                                                                     []Decision
+	Comments                                                                      []Comment
 }
 
 type Decision struct {
@@ -41,6 +42,25 @@ func (s *Server) deliverableRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /versions/{id}/withdraw", s.requireStaff(s.versionWithdraw))
 	mux.HandleFunc("POST /versions/{id}/delete", s.requireStaff(s.versionDelete))
 	mux.HandleFunc("GET /versions/{id}/download", s.requireStaff(s.versionDownload))
+	mux.HandleFunc("POST /versions/{id}/comment", s.requireStaff(s.versionComment))
+	mux.HandleFunc("POST /deliverables/{id}/waive", s.requireOwner(s.deliverableWaive))
+}
+
+func (s *Server) loadDecisions(r *http.Request, versionID string) ([]Decision, error) {
+	rows, err := s.db.R.QueryContext(r.Context(), `SELECT d.type, COALESCE(u.name, ''), d.note, d.created_at FROM decisions d LEFT JOIN users u ON u.id = d.by_user WHERE d.version_id = ? ORDER BY d.created_at`, versionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Decision
+	for rows.Next() {
+		var dec Decision
+		if err := rows.Scan(&dec.Type, &dec.By, &dec.Note, &dec.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, dec)
+	}
+	return out, rows.Err()
 }
 
 func (s *Server) loadDeliverable(r *http.Request, id string, writable bool) (Deliverable, Project, error) {
@@ -110,6 +130,7 @@ type deliverablePage struct {
 	Latest      string // state of the newest version
 	NeedsReason bool
 	CanAdd      bool
+	Waiver      string
 }
 
 func (s *Server) deliverableShow(w http.ResponseWriter, r *http.Request) {
@@ -136,19 +157,16 @@ func (s *Server) deliverableShow(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 	for i := range pg.Versions {
-		drows, err := s.db.R.QueryContext(r.Context(), `SELECT d.type, COALESCE(u.name, ''), d.note, d.created_at FROM decisions d LEFT JOIN users u ON u.id = d.by_user WHERE d.version_id = ? ORDER BY d.created_at`, pg.Versions[i].ID)
-		if err != nil {
+		if pg.Versions[i].Decisions, err = s.loadDecisions(r, pg.Versions[i].ID); err != nil {
 			s.fail(w, r, err)
 			return
 		}
-		for drows.Next() {
-			var dec Decision
-			if err := drows.Scan(&dec.Type, &dec.By, &dec.Note, &dec.CreatedAt); err == nil {
-				pg.Versions[i].Decisions = append(pg.Versions[i].Decisions, dec)
-			}
+		if pg.Versions[i].Comments, err = s.loadComments(r, "version", pg.Versions[i].ID, true); err != nil {
+			s.fail(w, r, err)
+			return
 		}
-		drows.Close()
 	}
+	s.db.R.QueryRowContext(r.Context(), `SELECT reason FROM waivers WHERE deliverable_id = ? ORDER BY created_at DESC LIMIT 1`, d.ID).Scan(&pg.Waiver)
 	if len(pg.Versions) > 0 {
 		pg.Latest = pg.Versions[0].State
 	}
@@ -366,8 +384,20 @@ func (s *Server) transition(w http.ResponseWriter, r *http.Request, to domain.Ve
 		if n, _ := res.RowsAffected(); n == 0 {
 			return fmt.Errorf("%w: version changed meanwhile", domain.ErrTransition)
 		}
-		// ponytail: client notification + email for "shared" arrives with the client portal in Phase 4.
-		return s.audit(r.Context(), tx, r, action, "deliverable_version", v.ID, map[string]any{"project_id": p.ID, "deliverable_id": v.DeliverableID, "number": v.Number})
+		if err := s.audit(r.Context(), tx, r, action, "deliverable_version", v.ID, map[string]any{"project_id": p.ID, "deliverable_id": v.DeliverableID, "number": v.Number}); err != nil {
+			return err
+		}
+		contacts, err := staffOrContacts(tx, p, true)
+		if err != nil {
+			return err
+		}
+		var title string
+		if to == domain.Shared {
+			title = fmt.Sprintf("%s: version %d is ready for your review", p.Name, v.Number)
+		} else {
+			title = fmt.Sprintf("%s: version %d was withdrawn", p.Name, v.Number)
+		}
+		return s.notify(tx, r, contacts, action, v.ID, title, "/portal/deliverables/"+v.DeliverableID)
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -422,4 +452,70 @@ func (s *Server) versionDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.serveFile(w, r, v.FileID.String, map[string]any{"project_id": p.ID, "version_id": v.ID})
+}
+
+func staffOrContacts(tx *sql.Tx, p Project, contacts bool) ([]string, error) {
+	if contacts {
+		return contactsOf(tx, p)
+	}
+	return staffOf(tx, p)
+}
+
+func (s *Server) versionComment(w http.ResponseWriter, r *http.Request) {
+	v, p, err := s.loadVersion(r, r.PathValue("id"), true)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	f, ok := s.parseForm(w, r)
+	if !ok {
+		return
+	}
+	err = s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+		id, err := s.addComment(tx, r, p, "version", v.ID, f["visibility"], f["body"])
+		if err != nil {
+			return err
+		}
+		if f["visibility"] != "client" {
+			return nil // internal notes never reach clients (contract §6.3)
+		}
+		contacts, err := contactsOf(tx, p)
+		if err != nil {
+			return err
+		}
+		return s.notify(tx, r, contacts, "comment.staff", id, fmt.Sprintf("New comment on %s v%d", p.Name, v.Number), "/portal/deliverables/"+v.DeliverableID)
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/deliverables/"+v.DeliverableID, http.StatusSeeOther)
+}
+
+// deliverableWaive lets the owner excuse a required deliverable from sign-off, with a recorded reason (contract §5).
+func (s *Server) deliverableWaive(w http.ResponseWriter, r *http.Request) {
+	d, p, err := s.loadDeliverable(r, r.PathValue("id"), true)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	f, ok := s.parseForm(w, r)
+	if !ok {
+		return
+	}
+	if !within(f["reason"], 3, 1000) {
+		s.fail(w, r, invalid("A waiver needs a reason (3–1000 characters)."))
+		return
+	}
+	err = s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`INSERT INTO waivers (id, deliverable_id, by_user, reason, created_at) VALUES (?, ?, ?, ?, ?)`, db.NewID(), d.ID, s.user(r).ID, f["reason"], db.Now()); err != nil {
+			return err
+		}
+		return s.audit(r.Context(), tx, r, "deliverable.waived", "deliverable", d.ID, map[string]any{"project_id": p.ID, "reason": f["reason"]})
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/projects/"+p.ID, http.StatusSeeOther)
 }

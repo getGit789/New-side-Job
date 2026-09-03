@@ -21,12 +21,17 @@ Open http://127.0.0.1:8080 and the setup page creates the owner account. Setup t
 | `briefrelay version` | print the build version |
 | `GET /healthz` | JSON readiness for database, storage, jobs, mail; 503 when degraded |
 
-## What works today (Phase 3)
+## What works today (Phases 3 and 4)
 
-Owner and staff can: add clients and contacts, create projects, assign staff, add milestones with client
-visibility, add deliverables, upload file or link versions, share and withdraw them, record invoices with
-documents and payment links, close and reopen projects, invite staff, and read the audit log.
-The client portal (invitations, review, approval, sign-off) is Phase 4.
+Owner and staff: clients and contacts, projects with staff assignment, milestones with client visibility,
+deliverables with immutable file or link versions, share and withdraw, comments (internal or client-visible),
+invoice records with documents and payment links, waivers, close and reopen, staff invitations, audit log.
+
+Clients: single-use portal invitation, their organization's projects only, client-visible milestones,
+shared versions with download, comments, revision requests and approvals bound to one version, the fixed
+project brief with clarification thread, client-visible invoices, and final sign-off that closes the project.
+
+Everyone: in-app notifications plus queued email with dedupe keys, so no event is mailed twice.
 
 Rules the server enforces are in [docs/product-contract.md](docs/product-contract.md).
 

@@ -3,6 +3,7 @@ package web
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -126,8 +127,21 @@ func (s *Server) invoiceStatus(w http.ResponseWriter, r *http.Request) {
 		if _, err := tx.Exec(`UPDATE invoices SET status = ?, updated_at = ? WHERE id = ?`, string(to), db.Now(), r.PathValue("id")); err != nil {
 			return err
 		}
-		// ponytail: "sent" notifies client contacts once the client portal exists (Phase 4).
-		return s.audit(r.Context(), tx, r, "invoice.status_changed", "invoice", r.PathValue("id"), map[string]any{"project_id": p.ID, "from": from, "to": string(to)})
+		if err := s.audit(r.Context(), tx, r, "invoice.status_changed", "invoice", r.PathValue("id"), map[string]any{"project_id": p.ID, "from": from, "to": string(to)}); err != nil {
+			return err
+		}
+		var vis, number string
+		if err := tx.QueryRow(`SELECT visibility, number FROM invoices WHERE id = ?`, r.PathValue("id")).Scan(&vis, &number); err != nil {
+			return err
+		}
+		if to != domain.InvoiceSent || vis != "client" {
+			return nil
+		}
+		contacts, err := contactsOf(tx, p)
+		if err != nil {
+			return err
+		}
+		return s.notify(tx, r, contacts, "invoice.sent", r.PathValue("id"), fmt.Sprintf("Invoice %s for %s", number, p.Name), "/portal/projects/"+p.ID)
 	})
 	if err != nil {
 		s.fail(w, r, err)

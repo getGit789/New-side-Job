@@ -50,6 +50,36 @@ func (s *Server) projectRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects/{id}/milestones", s.requireStaff(s.milestoneCreate))
 	mux.HandleFunc("POST /milestones/{id}", s.requireStaff(s.milestoneEdit))
 	mux.HandleFunc("POST /milestones/{id}/delete", s.requireStaff(s.milestoneDelete))
+	mux.HandleFunc("POST /projects/{id}/intake/comment", s.requireStaff(s.intakeClarify))
+}
+
+// intakeClarify posts a client-visible question on the brief (contract §3, "request clarification").
+func (s *Server) intakeClarify(w http.ResponseWriter, r *http.Request) {
+	p, err := s.loadWritableProject(r, r.PathValue("id"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	f, ok := s.parseForm(w, r)
+	if !ok {
+		return
+	}
+	err = s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+		id, err := s.addComment(tx, r, p, "intake", p.ID, "client", f["body"])
+		if err != nil {
+			return err
+		}
+		contacts, err := contactsOf(tx, p)
+		if err != nil {
+			return err
+		}
+		return s.notify(tx, r, contacts, "intake.clarify", id, "A question about your brief for "+p.Name, "/portal/projects/"+p.ID+"/intake")
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/projects/"+p.ID, http.StatusSeeOther)
 }
 
 func (s *Server) listProjects(r *http.Request, q, status string, limit, offset int) ([]ProjectRow, error) {
@@ -181,14 +211,17 @@ func (s *Server) projectCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 type projectPage struct {
-	Project      Project
-	Members      []Member
-	Candidates   []Member // staff who are not yet members (owner only)
-	Milestones   []Milestone
-	Deliverables []DeliverableRow
-	Invoices     []Invoice
-	Activity     []AuditRow
-	IntakeStatus string
+	Project        Project
+	Members        []Member
+	Candidates     []Member // staff who are not yet members (owner only)
+	Milestones     []Milestone
+	Deliverables   []DeliverableRow
+	Invoices       []Invoice
+	Activity       []AuditRow
+	Intake         *Intake
+	IntakeFields   []intakeField
+	IntakeComments []Comment
+	Handoff        handoffInfo
 }
 
 func (s *Server) projectShow(w http.ResponseWriter, r *http.Request) {
@@ -281,10 +314,15 @@ func (s *Server) projectData(r *http.Request, p Project) (projectPage, error) {
 	if err != nil {
 		return d, err
 	}
-	d.IntakeStatus = "No intake submitted yet."
-	var n int
-	if err := s.db.R.QueryRowContext(ctx, `SELECT count(*) FROM intake_responses WHERE project_id = ? AND status = 'submitted'`, p.ID).Scan(&n); err == nil && n > 0 {
-		d.IntakeStatus = "Intake submitted."
+	d.IntakeFields = intakeFields
+	if d.Intake, err = s.loadIntake(r, p.ID); err != nil {
+		return d, err
+	}
+	if d.IntakeComments, err = s.loadComments(r, "intake", p.ID, true); err != nil {
+		return d, err
+	}
+	if d.Handoff, err = s.loadHandoff(r, p); err != nil {
+		return d, err
 	}
 	return d, nil
 }

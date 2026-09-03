@@ -5,6 +5,7 @@
 <h1>{{$d.Title}}</h1>
 <p>{{if $d.Required}}Required for sign-off.{{else}}Optional.{{end}} {{if .Latest}}Current state: <strong>{{human .Latest}}</strong>.{{else}}No version yet.{{end}}</p>
 {{if $d.Description}}<p>{{$d.Description}}</p>{{end}}
+{{if .Waiver}}<p><em>Waived by the owner: {{.Waiver}}</em></p>{{end}}
 {{if not $p.Closed}}
 <details>
 <summary>Edit deliverable</summary>
@@ -25,7 +26,15 @@
 <br>Added {{date .CreatedAt}}{{if .CreatedBy}} by {{.CreatedBy}}{{end}}{{if .SharedAt.Valid}} · Shared {{date .SharedAt.String}}{{end}}</p>
 {{if .Note}}<p>{{.Note}}</p>{{end}}
 {{if .ReopenReason}}<p><em>Reopened: {{.ReopenReason}}</em></p>{{end}}
-{{if .Decisions}}<ul>{{range .Decisions}}<li>{{human .Type}} by {{.By}} on {{date .CreatedAt}}{{if .Note}}: {{.Note}}{{end}}</li>{{end}}</ul>{{end}}
+{{if .Decisions}}<ul>{{range .Decisions}}<li><strong>{{human .Type}}</strong> by {{.By}} on {{date .CreatedAt}}{{if .Note}}: {{.Note}}{{end}}</li>{{end}}</ul>{{end}}
+{{if .Comments}}<ul>{{range .Comments}}<li>[{{.Visibility}}] {{.Author}} ({{date .CreatedAt}}): {{.Body}}</li>{{end}}</ul>{{end}}
+{{if not $p.Closed}}
+<form method="post" action="/versions/{{.ID}}/comment">
+  <label for="c-{{.ID}}">Comment</label> <input id="c-{{.ID}}" name="body" required maxlength="10000">
+  <select name="visibility" aria-label="Visibility"><option value="internal">internal note</option><option value="client">visible to client</option></select>
+  <button type="submit">Post</button>
+</form>
+{{end}}
 {{if not $p.Closed}}
 {{if eq .State "draft"}}
 <form method="post" action="/versions/{{.ID}}/share" style="display:inline"><button type="submit">Share with client</button></form>
