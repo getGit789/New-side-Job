@@ -1,0 +1,16 @@
+# Local run and the shape of the public demo. Put a TLS proxy (Caddy, nginx) in front for production.
+services:
+  app:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      BRIEFRELAY_ENV: development
+      BRIEFRELAY_BASE_URL: http://localhost:8080
+      BRIEFRELAY_TRUST_PROXY: "false"
+    volumes:
+      - data:/data
+    healthcheck:
+      test: ["CMD", "/briefrelay", "check"]
+      interval: 60s
+volumes:
+  data:

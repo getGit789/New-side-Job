@@ -1,0 +1,435 @@
+// Package web is the HTTP layer: routing, middleware, setup wizard, login, health.
+package web
+
+import (
+	"context"
+	"crypto/rand"
+	"database/sql"
+	"embed"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"html/template"
+	"log/slog"
+	"net"
+	"net/http"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"briefrelay/internal/auth"
+	"briefrelay/internal/config"
+	"briefrelay/internal/db"
+	"briefrelay/internal/jobs"
+	"briefrelay/internal/mail"
+	"briefrelay/internal/storage"
+)
+
+//go:embed templates/*.html
+var templateFS embed.FS
+
+const sessionCookie = "br_session"
+
+// Version is set at build time with -ldflags "-X briefrelay/internal/web.Version=1.0.0".
+var Version = "dev"
+
+type Server struct {
+	cfg       config.Config
+	db        *db.DB
+	q         *jobs.Queue
+	mail      *mail.Mailer
+	store     *storage.Local
+	log       *slog.Logger
+	pages     map[string]*template.Template
+	limiter   *ipLimiter
+	authLimit *ipLimiter
+	installed atomic.Bool
+	dummyHash string // keeps failed logins for unknown users as slow as real ones
+}
+
+func New(cfg config.Config, d *db.DB, q *jobs.Queue, m *mail.Mailer, st *storage.Local, log *slog.Logger) (*Server, error) {
+	s := &Server{cfg: cfg, db: d, q: q, mail: m, store: st, log: log, pages: map[string]*template.Template{},
+		limiter: newIPLimiter(20, 40), authLimit: newIPLimiter(0.1, 5), dummyHash: auth.HashPassword("dummy")}
+	for _, p := range []string{"setup", "login", "home", "error"} {
+		t, err := template.ParseFS(templateFS, "templates/layout.html", "templates/"+p+".html")
+		if err != nil {
+			return nil, err
+		}
+		s.pages[p] = t
+	}
+	_, ok, err := d.Setting(context.Background(), "installed")
+	if err != nil {
+		return nil, err
+	}
+	s.installed.Store(ok)
+	return s, nil
+}
+
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", s.health)
+	mux.HandleFunc("GET /setup", s.setupForm)
+	mux.HandleFunc("POST /setup", s.setupSubmit)
+	mux.HandleFunc("GET /login", s.loginForm)
+	mux.HandleFunc("POST /login", s.loginSubmit)
+	mux.HandleFunc("POST /logout", s.logout)
+	mux.HandleFunc("GET /{$}", s.home)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		s.errorPage(w, r, http.StatusNotFound, "That page does not exist.")
+	})
+
+	cop := http.NewCrossOriginProtection()
+	cop.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.errorPage(w, r, http.StatusForbidden, "Cross-site request blocked.")
+	}))
+	var h http.Handler = cop.Handler(mux)
+	h = s.setupGate(h)
+	h = s.rateLimit(h)
+	h = s.securityHeaders(h)
+	h = s.logging(h)
+	h = s.recoverer(h)
+	return h
+}
+
+// ---- middleware ----
+
+type ctxKey int
+
+const userKey ctxKey = 1
+
+func (s *Server) recoverer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if p := recover(); p != nil && p != http.ErrAbortHandler {
+				s.log.Error("panic", "err", p, "path", r.URL.Path)
+				s.errorPage(w, r, http.StatusInternalServerError, "Something went wrong. The error has been logged.")
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(c int) { w.status = c; w.ResponseWriter.WriteHeader(c) }
+
+func (s *Server) logging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var b [8]byte
+		rand.Read(b[:])
+		id := hex.EncodeToString(b[:])
+		w.Header().Set("X-Request-Id", id)
+		sw := &statusWriter{ResponseWriter: w, status: 200}
+		start := time.Now()
+		next.ServeHTTP(sw, r)
+		s.log.Info("http", "id", id, "method", r.Method, "path", r.URL.Path, "status", sw.status, "ms", time.Since(start).Milliseconds(), "ip", s.clientIP(r))
+	})
+}
+
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		h.Set("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		if s.cfg.BaseURL.Scheme == "https" {
+			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) rateLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := s.clientIP(r)
+		authPath := r.Method == http.MethodPost && (r.URL.Path == "/login" || r.URL.Path == "/setup")
+		if !s.limiter.allow(ip) || (authPath && !s.authLimit.allow(ip)) {
+			w.Header().Set("Retry-After", "60")
+			s.errorPage(w, r, http.StatusTooManyRequests, "Too many requests. Please wait a minute and try again.")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// setupGate sends everything to /setup until the owner exists, then makes /setup disappear.
+func (s *Server) setupGate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		isSetup := r.URL.Path == "/setup"
+		switch {
+		case !s.installed.Load() && !isSetup && r.URL.Path != "/healthz":
+			http.Redirect(w, r, "/setup", http.StatusSeeOther)
+		case s.installed.Load() && isSetup:
+			s.errorPage(w, r, http.StatusNotFound, "Setup is complete and locked.")
+		default:
+			next.ServeHTTP(w, r)
+		}
+	})
+}
+
+func (s *Server) clientIP(r *http.Request) string {
+	if s.cfg.TrustProxy {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			return strings.TrimSpace(strings.Split(xff, ",")[0])
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+// currentUser resolves the session cookie. It re-reads the database every time: logging out is immediate.
+func (s *Server) currentUser(r *http.Request) (auth.User, bool) {
+	c, err := r.Cookie(sessionCookie)
+	if err != nil {
+		return auth.User{}, false
+	}
+	u, ok, err := auth.UserBySession(r.Context(), s.db, c.Value)
+	if err != nil {
+		s.log.Error("session lookup", "err", err)
+	}
+	return u, ok
+}
+
+func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge int) {
+	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true,
+		Secure: s.cfg.BaseURL.Scheme == "https", SameSite: http.SameSiteLaxMode, MaxAge: maxAge})
+}
+
+// ---- rendering ----
+
+type view struct {
+	User      *auth.User
+	Workspace string
+	Error     string
+	Form      map[string]string
+	Status    string
+	Message   string
+}
+
+func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page string, v view) {
+	if v.User == nil {
+		if u, ok := s.currentUser(r); ok {
+			v.User = &u
+		}
+	}
+	if v.Form == nil {
+		v.Form = map[string]string{}
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if err := s.pages[page].ExecuteTemplate(w, "layout", v); err != nil {
+		s.log.Error("render", "page", page, "err", err)
+	}
+}
+
+func (s *Server) errorPage(w http.ResponseWriter, r *http.Request, status int, msg string) {
+	s.render(w, r, status, "error", view{Status: fmt.Sprintf("%d %s", status, http.StatusText(status)), Message: msg})
+}
+
+// ---- handlers ----
+
+func (s *Server) health(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	checks := map[string]string{"database": "ok", "storage": "ok", "jobs": "ok", "mail": "ok"}
+	healthy := true
+	fail := func(k string, err error) { checks[k] = "fail: " + err.Error(); healthy = false }
+	if err := s.db.R.PingContext(ctx); err != nil {
+		fail("database", err)
+	}
+	if err := s.store.Writable(); err != nil {
+		fail("storage", err)
+	}
+	if !s.q.Healthy() {
+		fail("jobs", errors.New("worker has not ticked recently"))
+	}
+	if !s.mail.Configured() {
+		checks["mail"] = "not configured (mail is logged, not sent)"
+	}
+	stats, _ := s.q.Stats(ctx)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	if !healthy {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
+	status := "ok"
+	if !healthy {
+		status = "degraded"
+	}
+	json.NewEncoder(w).Encode(map[string]any{"status": status, "version": Version, "installed": s.installed.Load(), "checks": checks, "jobs": stats})
+}
+
+func (s *Server) setupForm(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, http.StatusOK, "setup", view{})
+}
+
+func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
+	form, ok := s.parseForm(w, r)
+	if !ok {
+		return
+	}
+	v := view{Form: form}
+	email := strings.ToLower(strings.TrimSpace(form["email"]))
+	switch {
+	case form["workspace"] == "" || form["name"] == "":
+		v.Error = "Workspace name and your name are required."
+	case !strings.Contains(email, "@"):
+		v.Error = "Enter a valid email address."
+	case len(form["password"]) < 12:
+		v.Error = "Password must be at least 12 characters."
+	}
+	if v.Error != "" {
+		s.render(w, r, http.StatusUnprocessableEntity, "setup", v)
+		return
+	}
+	var token string
+	ip := s.clientIP(r)
+	err := s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+		var n int
+		if err := tx.QueryRow(`SELECT count(*) FROM settings WHERE key = 'installed'`).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			return errAlreadyInstalled
+		}
+		now, wsID, userID := db.Now(), db.NewID(), db.NewID()
+		if _, err := tx.Exec(`INSERT INTO workspaces (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`, wsID, form["workspace"], now, now); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO users (id, email, name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, userID, email, form["name"], auth.HashPassword(form["password"]), now, now); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO memberships (workspace_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)`, wsID, userID, now); err != nil {
+			return err
+		}
+		for k, val := range map[string]string{"installed": "1", "installed_at": now, "installed_version": Version} {
+			if err := db.SetSetting(r.Context(), tx, k, val); err != nil {
+				return err
+			}
+		}
+		if err := db.Audit(r.Context(), tx, wsID, userID, "setup.completed", "workspace", wsID, ip, ""); err != nil {
+			return err
+		}
+		var err error
+		token, err = auth.CreateSession(r.Context(), tx, userID, ip, r.UserAgent())
+		return err
+	})
+	if errors.Is(err, errAlreadyInstalled) {
+		s.installed.Store(true)
+		s.errorPage(w, r, http.StatusNotFound, "Setup is complete and locked.")
+		return
+	}
+	if err != nil {
+		s.log.Error("setup", "err", err)
+		s.errorPage(w, r, http.StatusInternalServerError, "Setup failed. Check the server log.")
+		return
+	}
+	s.installed.Store(true)
+	s.setSessionCookie(w, token, int(auth.SessionTTL.Seconds()))
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+var errAlreadyInstalled = errors.New("already installed")
+
+func (s *Server) loginForm(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.currentUser(r); ok {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	s.render(w, r, http.StatusOK, "login", view{})
+}
+
+func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
+	form, ok := s.parseForm(w, r)
+	if !ok {
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(form["email"]))
+	ip := s.clientIP(r)
+	var userID, hash string
+	err := s.db.R.QueryRowContext(r.Context(), `SELECT id, password_hash FROM users WHERE email = ?`, email).Scan(&userID, &hash)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		s.log.Error("login lookup", "err", err)
+		s.errorPage(w, r, http.StatusInternalServerError, "Login failed. Check the server log.")
+		return
+	}
+	if hash == "" {
+		hash = s.dummyHash
+	}
+	valid, _ := auth.VerifyPassword(hash, form["password"])
+	if !valid || userID == "" {
+		s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+			return db.Audit(r.Context(), tx, "", "", "auth.login_failed", "user", email, ip, "")
+		})
+		s.render(w, r, http.StatusUnauthorized, "login", view{Form: map[string]string{"email": form["email"]}, Error: "Email or password is incorrect."})
+		return
+	}
+	var token string
+	err = s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+		if err := db.Audit(r.Context(), tx, "", userID, "auth.login", "user", userID, ip, ""); err != nil {
+			return err
+		}
+		var err error
+		token, err = auth.CreateSession(r.Context(), tx, userID, ip, r.UserAgent())
+		return err
+	})
+	if err != nil {
+		s.log.Error("login", "err", err)
+		s.errorPage(w, r, http.StatusInternalServerError, "Login failed. Check the server log.")
+		return
+	}
+	s.setSessionCookie(w, token, int(auth.SessionTTL.Seconds()))
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie(sessionCookie); err == nil {
+		u, _ := s.currentUser(r)
+		s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+			if u.ID != "" {
+				db.Audit(r.Context(), tx, "", u.ID, "auth.logout", "user", u.ID, s.clientIP(r), "")
+			}
+			return auth.DeleteSession(r.Context(), tx, c.Value)
+		})
+	}
+	s.setSessionCookie(w, "", -1)
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
+func (s *Server) home(w http.ResponseWriter, r *http.Request) {
+	u, ok := s.currentUser(r)
+	if !ok {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	var ws string
+	err := s.db.R.QueryRowContext(r.Context(), `SELECT w.name FROM workspaces w JOIN memberships m ON m.workspace_id = w.id WHERE m.user_id = ? ORDER BY m.created_at LIMIT 1`, u.ID).Scan(&ws)
+	if err != nil {
+		s.log.Error("home", "err", err)
+		s.errorPage(w, r, http.StatusInternalServerError, "Could not load your workspace.")
+		return
+	}
+	s.render(w, r, http.StatusOK, "home", view{User: &u, Workspace: ws})
+}
+
+func (s *Server) parseForm(w http.ResponseWriter, r *http.Request) (map[string]string, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	if err := r.ParseForm(); err != nil {
+		s.errorPage(w, r, http.StatusBadRequest, "Could not read the form.")
+		return nil, false
+	}
+	out := map[string]string{}
+	for k := range r.PostForm {
+		out[k] = strings.TrimSpace(r.PostForm.Get(k))
+	}
+	return out, true
+}

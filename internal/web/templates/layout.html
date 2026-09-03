@@ -1,0 +1,15 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{block "title" .}}BriefRelay{{end}}</title>
+</head>
+<body>
+<header><a href="/">BriefRelay</a>{{if .User}} · {{.User.Name}} <form method="post" action="/logout" style="display:inline"><button type="submit">Log out</button></form>{{end}}</header>
+<main>
+{{if .Error}}<p role="alert">{{.Error}}</p>{{end}}
+{{template "content" .}}
+</main>
+</body>
+</html>{{end}}
