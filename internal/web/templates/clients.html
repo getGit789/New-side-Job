@@ -30,9 +30,9 @@
 {{end}}
 <section class="block">
 {{if .Clients}}
-<div class="table-wrap"><table>
+<div class="table-wrap"><table class="stack-sm">
 <thead><tr><th>Client</th><th>Email</th><th class="num">Projects</th><th>Status</th></tr></thead>
-<tbody>{{range .Clients}}<tr><td><a href="/clients/{{.ID}}">{{.Name}}</a></td><td>{{.Email}}</td><td class="num">{{.ProjectCount}}</td><td>{{if .ArchivedAt.Valid}}<span class="state -closed">archived</span>{{else}}<span class="state -active">active</span>{{end}}</td></tr>{{end}}</tbody>
+<tbody>{{range .Clients}}<tr><td data-label="Client"><a href="/clients/{{.ID}}">{{.Name}}</a></td><td data-label="Email">{{.Email}}</td><td class="num" data-label="Projects">{{.ProjectCount}}</td><td data-label="Status">{{if .ArchivedAt.Valid}}<span class="state -closed">archived</span>{{else}}<span class="state -active">active</span>{{end}}</td></tr>{{end}}</tbody>
 </table></div>
 {{else}}<div class="empty"><p>No clients found.</p></div>{{end}}
 <nav class="pager" aria-label="Pages">{{if gt .Page 1}}<a href="/clients?q={{.Query}}&page={{add .Page -1}}{{if .ShowArchived}}&archived=1{{end}}">Previous</a>{{end}}

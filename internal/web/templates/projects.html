@@ -28,9 +28,9 @@
 </details>
 <section class="block">
 {{if .Projects}}
-<div class="table-wrap"><table>
+<div class="table-wrap"><table class="stack-sm">
 <thead><tr><th>Project</th><th>Client</th><th>Status</th><th>Updated</th></tr></thead>
-<tbody>{{range .Projects}}<tr><td><a href="/projects/{{.ID}}">{{.Name}}</a></td><td><a href="/clients/{{.ClientID}}">{{.ClientName}}</a></td><td><span class="state -{{.Status}}">{{.Status}}</span></td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
+<tbody>{{range .Projects}}<tr><td data-label="Project"><a href="/projects/{{.ID}}">{{.Name}}</a></td><td data-label="Client"><a href="/clients/{{.ClientID}}">{{.ClientName}}</a></td><td data-label="Status"><span class="state -{{.Status}}">{{.Status}}</span></td><td data-label="Updated">{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
 </table></div>
 {{else}}<div class="empty"><p>No projects found.</p></div>{{end}}
 <nav class="pager" aria-label="Pages">{{if gt .Page 1}}<a href="/projects?q={{.Query}}&status={{.Status}}&page={{add .Page -1}}">Previous</a>{{end}}

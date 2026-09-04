@@ -2,6 +2,11 @@
 
 ## For the agency owner and staff
 
+**Overview.** The first page lists what needs a hand: revisions the client asked for, overdue invoices, projects
+ready for sign-off, drafts nobody has shared, versions waiting on the client for over a week, contacts without
+portal access, briefs not started. Each line links to the place where you act. A new workspace also shows four
+first steps until they are done.
+
 **Roles.** The owner can do everything. Staff see only the projects they are assigned to. Clients see only their
 own organization's projects, and only what is marked visible to them.
 
@@ -50,6 +55,9 @@ sign-off, audit trail and files. An archived client can be deleted permanently, 
 portal accounts. Export first; deletion cannot be undone.
 
 ## For clients
+
+Your first page lists what is waiting for you: versions to approve, a brief to fill in, open invoices, and a
+sign-off when everything is approved. Each line takes you straight there.
 
 You get an email with an invitation link. Open it, choose a password, and tick the notice: the agency runs this
 portal, your comments and decisions are recorded with your name and the time, and sign-off is a record of

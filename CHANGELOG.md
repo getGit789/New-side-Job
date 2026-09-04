@@ -14,5 +14,8 @@ allowed upload types); search; email change and notification preference per user
 tombstone; invoice editing; deliverable deletion while unshared; client terms notice; common-password check.
 Interface: one self-hosted stylesheet and typeface (no external requests), staff sidebar and single-column
 client portal, version rail with decision stamps, phone layouts, keyboard focus and reduced-motion support.
+Overview pages point at what needs a hand (revisions, overdue invoices, sign-off ready, unshared drafts, stale
+reviews, uninvited contacts, briefs not started) for staff, and at decisions, briefs, invoices and sign-off
+for clients; a first-steps guide shows until a new workspace has shared its first version.
 
 Update notes: none (fresh install). New settings: none beyond `.env.example`.

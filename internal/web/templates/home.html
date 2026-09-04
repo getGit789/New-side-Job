@@ -1,29 +1,41 @@
 {{define "content"}}
 {{with .Data}}
 {{if $.Role.IsStaff}}
-<div class="page"><div><h1>Overview</h1><p class="sub">Where things stand across the workspace.</p></div>
+<div class="page"><div><h1>{{.Greeting}}</h1><p class="sub">{{if .Pointers}}{{len .Pointers}} {{if eq (len .Pointers) 1}}thing needs{{else}}things need{{end}} a hand today.{{else}}Nothing is waiting on you. Everything is with the client or done.{{end}}</p></div>
 <div class="actions"><a class="btn -primary" href="/projects">New project</a></div></div>
-<div class="grid">
-  <a class="stat{{if .PendingReviews}} -alert{{end}}" href="/projects?status=active"><span class="label">Versions waiting for a client decision</span><span class="big">{{.PendingReviews}}</span></a>
-  <a class="stat" href="/projects?status=active"><span class="label">Active projects</span><span class="big">{{.ActiveProjects}}</span></a>
-  <a class="stat" href="/clients"><span class="label">Clients</span><span class="big">{{.Clients}}</span></a>
+<div class="stats">
+  <a class="stat{{if .PendingReviews}} -alert{{end}}" href="/projects?status=active"><span class="big">{{.PendingReviews}}</span><span class="label">with the client</span></a>
+  <a class="stat" href="/projects?status=active"><span class="big">{{.ActiveProjects}}</span><span class="label">active projects</span></a>
+  <a class="stat" href="/clients"><span class="big">{{.Clients}}</span><span class="label">clients</span></a>
 </div>
-<section class="block"><h2>Recent projects <small><a href="/projects">All projects</a></small></h2>
+{{if not .AllDone}}
+<section class="block"><h2>First steps <small>Four moves from empty to a client approving work</small></h2>
+<ol class="steps">{{range .Steps}}<li class="{{if .Done}}-done{{end}}"><span class="mark">{{if .Done}}✓{{end}}</span><a href="{{.URL}}">{{.Label}}</a></li>{{end}}</ol>
+</section>
+{{end}}
+<section class="block"><h2>Needs a hand</h2>
+{{if .Pointers}}<ul class="pointers">{{range .Pointers}}<li class="{{if .Urgent}}-urgent{{end}}"><a href="{{.URL}}">{{.Title}}</a><span class="detail">{{.Detail}}</span></li>{{end}}</ul>
+{{else}}<div class="empty"><p>Nothing to chase. When a client asks for a revision, an invoice runs late, or a project is ready to sign off, it shows up here.</p></div>{{end}}
+</section>
+<section class="block"><h2>Active projects <small><a href="/projects">All projects</a></small></h2>
 {{if .Recent}}
-<div class="table-wrap"><table>
+<div class="table-wrap"><table class="stack-sm">
 <thead><tr><th>Project</th><th>Client</th><th>Updated</th></tr></thead>
-<tbody>{{range .Recent}}<tr><td><a href="/projects/{{.ID}}">{{.Name}}</a></td><td><a href="/clients/{{.ClientID}}">{{.ClientName}}</a></td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
+<tbody>{{range .Recent}}<tr><td data-label="Project"><a href="/projects/{{.ID}}">{{.Name}}</a></td><td data-label="Client"><a href="/clients/{{.ClientID}}">{{.ClientName}}</a></td><td data-label="Updated">{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
 </table></div>
 {{else}}<div class="empty"><p>No projects yet. <a href="/clients">Add a client</a>, then <a href="/projects">create a project</a>.</p></div>{{end}}
 </section>
 {{else}}
-<div class="page"><div><h1>Your projects</h1><p class="sub">Everything {{$.Workspace.Name}} has shared with you.</p></div></div>
+<div class="page"><div><h1>{{.Greeting}}</h1><p class="sub">{{if .Pointers}}{{len .Pointers}} {{if eq (len .Pointers) 1}}thing is{{else}}things are{{end}} waiting for you.{{else}}Nothing is waiting for you right now. You are told by email when something is.{{end}}</p></div></div>
+{{if .Pointers}}<section class="block"><h2>For you</h2><ul class="pointers">{{range .Pointers}}<li class="{{if .Urgent}}-urgent{{end}}"><a href="{{.URL}}">{{.Title}}</a><span class="detail">{{.Detail}}</span></li>{{end}}</ul></section>{{end}}
+<section class="block"><h2>Your projects</h2>
 {{if .Recent}}
-<div class="table-wrap"><table>
+<div class="table-wrap"><table class="stack-sm">
 <thead><tr><th>Project</th><th>Status</th><th>Updated</th></tr></thead>
-<tbody>{{range .Recent}}<tr><td><a href="/portal/projects/{{.ID}}">{{.Name}}</a></td><td><span class="state -{{.Status}}">{{.Status}}</span></td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
+<tbody>{{range .Recent}}<tr><td data-label="Project"><a href="/portal/projects/{{.ID}}">{{.Name}}</a></td><td data-label="Status"><span class="state -{{.Status}}">{{.Status}}</span></td><td data-label="Updated">{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
 </table></div>
 {{else}}<div class="empty"><p>No projects have been shared with you yet.</p></div>{{end}}
+</section>
 {{end}}
 {{end}}
 {{end}}

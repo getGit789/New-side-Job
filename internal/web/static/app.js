@@ -11,3 +11,10 @@ document.addEventListener("submit", function (e) {
     if (href === "/" ? path === "/" : path === href || path.indexOf(href + "/") === 0) a.setAttribute("aria-current", "page");
   });
 })();
+// On phones the menu starts closed; on wide screens it is always open. Without this script it stays open, which still works.
+(function () {
+  var mq = window.matchMedia("(max-width: 880px)");
+  function apply() { document.querySelectorAll("details.drawer").forEach(function (d) { d.open = !mq.matches; }); }
+  apply();
+  mq.addEventListener("change", apply);
+})();
