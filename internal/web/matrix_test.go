@@ -17,11 +17,16 @@ import (
 // Order of columns: owner, assigned staff, unassigned staff, client of org A, client of org B.
 // Anonymous users must be sent to /login on every non-public route.
 var matrix = map[string][5]string{
-	"GET /{$}":                 {"ok", "ok", "ok", "ok", "ok"},
-	"GET /notifications":       {"ok", "ok", "ok", "ok", "ok"},
-	"POST /notifications/read": {"ok", "ok", "ok", "ok", "ok"},
-	"GET /account":             {"ok", "ok", "ok", "ok", "ok"},
-	"POST /account/password":   {"ok", "ok", "ok", "ok", "ok"},
+	"GET /{$}":                    {"ok", "ok", "ok", "ok", "ok"},
+	"GET /notifications":          {"ok", "ok", "ok", "ok", "ok"},
+	"POST /notifications/read":    {"ok", "ok", "ok", "ok", "ok"},
+	"GET /account":                {"ok", "ok", "ok", "ok", "ok"},
+	"POST /account/password":      {"ok", "ok", "ok", "ok", "ok"},
+	"POST /account/email":         {"ok", "ok", "ok", "ok", "ok"},
+	"POST /account/notifications": {"ok", "ok", "ok", "ok", "ok"},
+	"GET /settings":               {"ok", "403", "403", "403", "403"},
+	"POST /settings":              {"ok", "403", "403", "403", "403"},
+	"GET /search":                 {"ok", "ok", "ok", "403", "403"},
 
 	"GET /clients/export.csv":       {"ok", "403", "403", "403", "403"},
 	"POST /clients/import":          {"ok", "403", "403", "403", "403"},
@@ -60,6 +65,9 @@ var matrix = map[string][5]string{
 	"GET /versions/{id}/download":               {"ok", "ok", "404", "403", "403"},
 	"POST /versions/{id}/comment":               {"ok", "ok", "404", "403", "403"},
 	"POST /deliverables/{id}/waive":             {"ok", "403", "403", "403", "403"},
+	"POST /deliverables/{id}/delete":            {"ok", "ok", "404", "403", "403"},
+	"POST /comments/{id}/delete":                {"ok", "ok", "404", "403", "403"},
+	"POST /invoices/{id}":                       {"ok", "ok", "404", "403", "403"},
 	"POST /projects/{id}/invoices":              {"ok", "ok", "404", "403", "403"},
 	"POST /invoices/{id}/status":                {"ok", "ok", "404", "403", "403"},
 	"GET /invoices/{id}/document":               {"ok", "ok", "404", "403", "403"},
@@ -71,6 +79,7 @@ var matrix = map[string][5]string{
 	"GET /portal/projects/{id}":                 {"403", "403", "403", "ok", "404"},
 	"GET /portal/deliverables/{id}":             {"403", "403", "403", "ok", "404"},
 	"POST /portal/versions/{id}/comment":        {"403", "403", "403", "ok", "404"},
+	"POST /portal/comments/{id}/delete":         {"403", "403", "403", "ok", "404"},
 	"POST /portal/versions/{id}/decide":         {"403", "403", "403", "ok", "404"},
 	"GET /portal/versions/{id}/download":        {"403", "403", "403", "ok", "404"},
 	"GET /portal/invoices/{id}/document":        {"403", "403", "403", "ok", "404"},
@@ -85,6 +94,7 @@ var publicRoutes = map[string]bool{
 	"GET /healthz": true, "GET /setup": true, "POST /setup": true, "GET /login": true, "POST /login": true,
 	"POST /logout": true, "GET /invite/{token}": true, "POST /invite/{token}": true, "/": true,
 	"GET /password/forgot": true, "POST /password/forgot": true, "GET /password/reset/{token}": true, "POST /password/reset/{token}": true,
+	"GET /logo": true,
 }
 
 func TestPermissionMatrix(t *testing.T) {
@@ -130,6 +140,8 @@ func TestPermissionMatrix(t *testing.T) {
 	o.want(o.upload("/deliverables/"+did+"/versions", nil, "file", "logo.pdf", "%PDF-1.4 v1"), 303, "v1")
 	vid := e.scalar(`SELECT id FROM deliverable_versions WHERE deliverable_id = ?`, did)
 	o.want(o.post("/versions/"+vid+"/share", nil), 303, "share v1")
+	o.want(o.post("/versions/"+vid+"/comment", url.Values{"body": {"owner note"}, "visibility": {"client"}}), 303, "owner comment")
+	commentID := e.scalar(`SELECT id FROM comments WHERE body = 'owner note'`)
 	o.want(o.upload("/projects/"+pid+"/invoices", map[string]string{"number": "INV-1", "amount": "10", "currency": "USD", "visibility": "client"}, "document", "inv.pdf", "%PDF-1.4 inv"), 303, "invoice")
 	iid := e.scalar(`SELECT id FROM invoices WHERE project_id = ?`, pid)
 	o.want(o.post("/invoices/"+iid+"/status", url.Values{"to": {"sent"}}), 303, "send invoice") // clients never see drafts
@@ -164,6 +176,8 @@ func TestPermissionMatrix(t *testing.T) {
 			return did
 		case strings.Contains(pattern, "/versions/{id}"):
 			return vid
+		case strings.Contains(pattern, "/comments/{id}"):
+			return commentID
 		case strings.Contains(pattern, "/milestones/{id}"):
 			return mids[col]
 		case strings.Contains(pattern, "/invoices/{id}"):

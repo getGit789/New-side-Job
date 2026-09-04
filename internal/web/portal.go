@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"briefrelay/internal/db"
 	"briefrelay/internal/domain"
@@ -16,7 +17,10 @@ import (
 
 type Comment struct {
 	ID, Author, Body, Visibility, CreatedAt string
+	CanDelete                               bool // the requester wrote it less than 15 minutes ago (contract §2)
 }
+
+const commentDeleteWindow = 15 * time.Minute
 
 type Signoff struct {
 	By, Snapshot, CreatedAt string
@@ -57,6 +61,7 @@ func (s *Server) portalRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /portal/projects/{id}", s.requireClient(s.portalProject))
 	mux.HandleFunc("GET /portal/deliverables/{id}", s.requireClient(s.portalDeliverable))
 	mux.HandleFunc("POST /portal/versions/{id}/comment", s.requireClient(s.portalComment))
+	mux.HandleFunc("POST /portal/comments/{id}/delete", s.requireClient(s.portalCommentDelete))
 	mux.HandleFunc("POST /portal/versions/{id}/decide", s.requireClient(s.portalDecide))
 	mux.HandleFunc("GET /portal/versions/{id}/download", s.requireClient(s.portalDownload))
 	mux.HandleFunc("GET /portal/invoices/{id}/document", s.requireClient(s.portalInvoiceDocument))
@@ -73,8 +78,10 @@ func (s *Server) loadComments(r *http.Request, targetType, targetID string, incl
 	if !includeInternal {
 		cond = " AND c.visibility = 'client'"
 	}
-	rows, err := s.db.R.QueryContext(r.Context(), `SELECT c.id, COALESCE(u.name, ''), CASE WHEN c.deleted_at IS NULL THEN c.body ELSE '(deleted)' END, c.visibility, c.created_at
-		FROM comments c LEFT JOIN users u ON u.id = c.author_id WHERE c.target_type = ? AND c.target_id = ?`+cond+` ORDER BY c.created_at`, targetType, targetID)
+	rows, err := s.db.R.QueryContext(r.Context(), `SELECT c.id, COALESCE(u.name, ''), CASE WHEN c.deleted_at IS NULL THEN c.body ELSE '(deleted)' END, c.visibility, c.created_at,
+		c.author_id = ? AND c.deleted_at IS NULL AND c.created_at > ?
+		FROM comments c LEFT JOIN users u ON u.id = c.author_id WHERE c.target_type = ? AND c.target_id = ?`+cond+` ORDER BY c.created_at`,
+		s.user(r).ID, db.Time(time.Now().Add(-commentDeleteWindow)), targetType, targetID)
 	if err != nil {
 		return nil, err
 	}
@@ -82,12 +89,56 @@ func (s *Server) loadComments(r *http.Request, targetType, targetID string, incl
 	var out []Comment
 	for rows.Next() {
 		var c Comment
-		if err := rows.Scan(&c.ID, &c.Author, &c.Body, &c.Visibility, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Author, &c.Body, &c.Visibility, &c.CreatedAt, &c.CanDelete); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// deleteOwnComment leaves a tombstone. Only the author, only within the window; the UPDATE enforces both.
+func (s *Server) deleteOwnComment(w http.ResponseWriter, r *http.Request, portal bool) {
+	p, err := s.projectOf(r, "comments", r.PathValue("id"), true)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	var targetType, targetID string
+	err = s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+		if err := tx.QueryRow(`SELECT target_type, target_id FROM comments WHERE id = ?`, r.PathValue("id")).Scan(&targetType, &targetID); err != nil {
+			return err
+		}
+		res, err := tx.Exec(`UPDATE comments SET deleted_at = ? WHERE id = ? AND author_id = ? AND deleted_at IS NULL AND created_at > ?`,
+			db.Now(), r.PathValue("id"), s.user(r).ID, db.Time(time.Now().Add(-commentDeleteWindow)))
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return invalid("You can delete only your own comments, and only within 15 minutes of posting.")
+		}
+		return s.audit(r.Context(), tx, r, "comment.deleted", "comment", r.PathValue("id"), map[string]any{"project_id": p.ID})
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	back := "/projects/" + p.ID
+	if targetType == "version" {
+		var did string
+		s.db.R.QueryRowContext(r.Context(), `SELECT deliverable_id FROM deliverable_versions WHERE id = ?`, targetID).Scan(&did)
+		back = "/deliverables/" + did
+		if portal {
+			back = "/portal/deliverables/" + did
+		}
+	} else if portal {
+		back = "/portal/projects/" + p.ID + "/intake"
+	}
+	http.Redirect(w, r, back, http.StatusSeeOther)
+}
+
+func (s *Server) portalCommentDelete(w http.ResponseWriter, r *http.Request) {
+	s.deleteOwnComment(w, r, true)
 }
 
 func (s *Server) addComment(tx *sql.Tx, r *http.Request, p Project, targetType, targetID, visibility, body string) (string, error) {

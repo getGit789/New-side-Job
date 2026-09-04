@@ -171,7 +171,7 @@ func (s *Server) teamRemove(w http.ResponseWriter, r *http.Request) {
 }
 
 type invitePage struct {
-	Token, Email, Workspace string
+	Token, Email, Workspace, Role string
 }
 
 func (s *Server) loadInvitation(r *http.Request, token string) (id, ws, email, role string, err error) {
@@ -191,12 +191,12 @@ func (s *Server) loadInvitation(r *http.Request, token string) (id, ws, email, r
 }
 
 func (s *Server) inviteForm(w http.ResponseWriter, r *http.Request) {
-	_, ws, email, _, err := s.loadInvitation(r, r.PathValue("token"))
+	_, ws, email, role, err := s.loadInvitation(r, r.PathValue("token"))
 	if err != nil {
 		s.errorPage(w, r, http.StatusGone, "This invitation is not valid any more. Ask for a new one.")
 		return
 	}
-	s.render(w, r, http.StatusOK, "invite", view{Title: "Accept invitation", Data: invitePage{Token: r.PathValue("token"), Email: email, Workspace: ws}})
+	s.render(w, r, http.StatusOK, "invite", view{Title: "Accept invitation", Data: invitePage{Token: r.PathValue("token"), Email: email, Workspace: ws, Role: role}})
 }
 
 func (s *Server) inviteAccept(w http.ResponseWriter, r *http.Request) {
@@ -210,12 +210,14 @@ func (s *Server) inviteAccept(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	v := view{Title: "Accept invitation", Form: f, Data: invitePage{Token: token, Email: email, Workspace: ws}}
+	v := view{Title: "Accept invitation", Form: f, Data: invitePage{Token: token, Email: email, Workspace: ws, Role: role}}
 	switch {
 	case !within(f["name"], 1, 200):
 		v.Error = "Enter your name."
-	case len(f["password"]) < 12 || len(f["password"]) > 200:
-		v.Error = "Password must be at least 12 characters."
+	case auth.CheckPassword(f["password"]) != nil:
+		v.Error = passwordRule
+	case role == "client" && f["terms"] != "1": // plan §5.3 B: the client accepts the terms notice
+		v.Error = "Please confirm the notice about how this portal records your activity."
 	}
 	if v.Error != "" {
 		s.render(w, r, http.StatusUnprocessableEntity, "invite", v)
@@ -252,7 +254,7 @@ func (s *Server) inviteAccept(w http.ResponseWriter, r *http.Request) {
 				return errNotFound // contact was removed after the invitation went out
 			}
 		}
-		if err := db.Audit(r.Context(), tx, wsID, userID, "invitation.accepted", "invitation", invID, ip, fmt.Sprintf(`{"role":%q}`, role)); err != nil {
+		if err := db.Audit(r.Context(), tx, wsID, userID, "invitation.accepted", "invitation", invID, ip, fmt.Sprintf(`{"role":%q,"terms_accepted":%v}`, role, f["terms"] == "1")); err != nil {
 			return err
 		}
 		session, err = auth.CreateSession(r.Context(), tx, userID, ip, r.UserAgent())

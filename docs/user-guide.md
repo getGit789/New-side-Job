@@ -29,8 +29,21 @@ reopen a closed project with a reason; the sign-off record stays.
 
 **Team.** Owner only: invite staff, revoke invitations, remove staff. Activity shows the full audit log.
 
-**Account.** Click your name in the top bar to change your password. It asks for the current password and logs out
-other devices. "Forgot your password?" on the login page sends a one-hour, single-use link.
+**Settings.** Owner only. Workspace name and logo (shown in the top bar and on the login page), contact details
+(shown in the footer to clients), time zone and date format (every timestamp follows them), default currency for
+new invoices, and the allowed upload types (for example `pdf, png, zip`; leave empty to allow anything that is not
+executable or HTML).
+
+**Search.** The Search page finds clients, projects and deliverables by name. Staff only see what they are assigned to.
+
+**Comments.** You can delete your own comment within 15 minutes of posting. The text is replaced by "(deleted)";
+the entry stays so the thread keeps its order. Invoice records can be edited while draft or sent; paid and canceled
+invoices are frozen. A deliverable can be deleted only while nothing has been shared; otherwise withdraw the version.
+
+**Account.** Click your name in the top bar to change your password or email. Both ask for the current password;
+a password change logs out other devices. Passwords must be 12 to 200 characters and are refused if they appear
+on the shipped list of the 10,000 most common passwords. The email notification switch turns off emails for you;
+in-app notifications stay on. "Forgot your password?" on the login page sends a one-hour, single-use link.
 
 **Export and delete.** Owner only. A closed project can be exported as a zip: the client-visible record, decisions,
 sign-off, audit trail and files. An archived client can be deleted permanently, with all its projects, files and
@@ -38,12 +51,15 @@ portal accounts. Export first; deletion cannot be undone.
 
 ## For clients
 
-You get an email with an invitation link. Open it, choose a password, and you are in. You see only your own projects.
+You get an email with an invitation link. Open it, choose a password, and tick the notice: the agency runs this
+portal, your comments and decisions are recorded with your name and the time, and sign-off is a record of
+completion, not a legal electronic signature. Then you are in. You see only your own projects.
 
 - **Brief.** Answer the questions and save as you go. Submit when done; your agency can then ask follow-up questions.
 - **Review.** Open a deliverable to see the versions shared with you. Download the file or open the link. Leave a
-  comment, then either **Approve** or **Request revision** with a note. Each decision is tied to one exact version, so
-  there is never a question about which file you approved.
+  comment (you can delete it within 15 minutes), then either **Approve** or **Request revision** with a note. Each
+  decision is tied to one exact version, so there is never a question about which file you approved.
+- **Account.** Your name in the top bar: change password or email, and switch email notifications off or on.
 - **Invoices.** Sent invoices show with a download and a payment link. Payment happens on the link, outside this portal.
 - **Sign off.** When everything required is approved, the sign-off button appears. Signing records the exact versions
   and closes the project. You can still read everything afterwards, but nothing can be changed.

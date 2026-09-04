@@ -42,6 +42,8 @@ Docker is also supported: `docker compose up -d` with the included compose file.
 5. **HTTPS proxy**: copy `deploy/Caddyfile` to `/etc/caddy/Caddyfile`, put your host name in, `sudo systemctl reload caddy`.
    Caddy obtains the certificate. For nginx, proxy `/` to `127.0.0.1:8080` with `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` and `client_max_body_size 60m;`.
 6. **Create the owner**: open `https://portal.yourdomain.com/setup` in a browser. The page disappears after the first owner exists.
+7. **Settings** (top bar, owner only): workspace name, logo, contact details shown to clients, time zone, date format,
+   default currency, and the list of allowed upload types. Everything else is in `.env`.
 
 Optional sample data for a look around: `./briefrelay seed` on an empty install. The sample accounts and their passwords are printed; change or delete them before real use.
 

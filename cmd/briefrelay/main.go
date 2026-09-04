@@ -31,6 +31,7 @@ import (
 	"briefrelay/internal/seed"
 	"briefrelay/internal/storage"
 	"briefrelay/internal/web"
+	_ "time/tzdata" // workspace time zones work on hosts without a tz database (static binary, scratch containers)
 )
 
 func main() {

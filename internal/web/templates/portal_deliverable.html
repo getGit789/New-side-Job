@@ -10,7 +10,7 @@
 <p>{{if eq .Kind "file"}}<a href="/portal/versions/{{.ID}}/download">Download {{.FileName.String}}</a> ({{.FileSize.Int64}} bytes){{else}}<a href="{{.URL}}" rel="noopener noreferrer">{{.URL}}</a>{{end}}{{if .SharedAt.Valid}} · shared {{date .SharedAt.String}}{{end}}</p>
 {{if .Note}}<p>{{.Note}}</p>{{end}}
 {{if .Decisions}}<ul>{{range .Decisions}}<li><strong>{{human .Type}}</strong> by {{.By}} on {{date .CreatedAt}}{{if .Note}}: {{.Note}}{{end}}</li>{{end}}</ul>{{end}}
-{{if .Comments}}<ul>{{range .Comments}}<li>{{.Author}} ({{date .CreatedAt}}): {{.Body}}</li>{{end}}</ul>{{end}}
+{{if .Comments}}<ul>{{range .Comments}}<li>{{.Author}} ({{date .CreatedAt}}): {{.Body}}{{if and .CanDelete (not $p.Closed)}} <form method="post" action="/portal/comments/{{.ID}}/delete" style="display:inline"><button type="submit">Delete</button></form>{{end}}</li>{{end}}</ul>{{end}}
 {{if and (eq .State "shared") (not $p.Closed)}}
 <form method="post" action="/portal/versions/{{.ID}}/comment">
   <label for="c-{{.ID}}">Comment</label> <input id="c-{{.ID}}" name="body" required maxlength="10000">

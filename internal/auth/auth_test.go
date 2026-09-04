@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"briefrelay/internal/db"
@@ -61,5 +62,22 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 	if _, ok, _ := UserBySession(ctx, d, token); ok {
 		t.Fatal("deleted session must not resolve")
+	}
+}
+
+func TestCheckPassword(t *testing.T) {
+	for pw, ok := range map[string]bool{"short": false, "1234567890123": true, "trustno1trustno1": true, "Password1234": true} {
+		if (CheckPassword(pw) == nil) != ok {
+			t.Errorf("CheckPassword(%q) ok=%v, want %v", pw, !ok, ok)
+		}
+	}
+	// A list entry of 12+ characters must be refused even though it passes the length rule.
+	for _, line := range strings.Split(commonList, "\n") {
+		if len(line) >= 12 {
+			if CheckPassword(line) == nil {
+				t.Errorf("common password %q accepted", line)
+			}
+			return
+		}
 	}
 }

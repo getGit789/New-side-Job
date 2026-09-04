@@ -1,0 +1,17 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Search</h1>
+<form method="get" action="/search">
+  <label for="q">Clients, projects and deliverables</label> <input id="q" name="q" value="{{.Query}}" maxlength="200" required>
+  <button type="submit">Search</button>
+</form>
+{{if .Query}}
+<h2>Clients</h2>
+{{if .Clients}}<ul>{{range .Clients}}<li><a href="/clients/{{.ID}}">{{.Name}}</a>{{if .ArchivedAt.Valid}} (archived){{end}}</li>{{end}}</ul>{{else}}<p>No clients match.</p>{{end}}
+<h2>Projects</h2>
+{{if .Projects}}<ul>{{range .Projects}}<li><a href="/projects/{{.ID}}">{{.Name}}</a> · {{.ClientName}} · {{.Status}}</li>{{end}}</ul>{{else}}<p>No projects match.</p>{{end}}
+<h2>Deliverables</h2>
+{{if .Deliverables}}<ul>{{range .Deliverables}}<li><a href="/deliverables/{{.ID}}">{{.Title}}</a> · {{.ProjectName}} ({{.ClientName}}){{if .LatestState}} · {{human .LatestState}}{{end}}</li>{{end}}</ul>{{else}}<p>No deliverables match.</p>{{end}}
+{{end}}
+{{end}}
+{{end}}

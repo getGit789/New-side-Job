@@ -1,0 +1,19 @@
+{{define "content"}}
+{{with .Data}}{{$p := .Prefs}}
+<h1>Settings</h1>
+{{if $.Demo}}<p>Settings are shown but cannot be saved in the demo.</p>{{end}}
+<form method="post" action="/settings" enctype="multipart/form-data">
+  <p><label for="name">Workspace name</label><br><input id="name" name="name" required maxlength="200" value="{{$p.Name}}"></p>
+  <p><label for="contact">Contact details shown to clients (address, phone, email)</label><br><textarea id="contact" name="contact" rows="3" maxlength="10000">{{$p.Contact}}</textarea></p>
+  <p><label for="logo">Logo (PNG, JPEG, GIF or WebP)</label><br><input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+  {{if $p.HasLogo}}<br><img src="/logo" alt="Current logo" height="48">{{end}}</p>
+  <p><label for="time_zone">Time zone (IANA name)</label><br><input id="time_zone" name="time_zone" required maxlength="64" list="tz" value="{{$p.TimeZone}}">
+  <datalist id="tz"><option value="UTC"><option value="Europe/London"><option value="Europe/Berlin"><option value="Europe/Paris"><option value="Europe/Madrid"><option value="Europe/Belgrade"><option value="America/New_York"><option value="America/Chicago"><option value="America/Denver"><option value="America/Los_Angeles"><option value="America/Sao_Paulo"><option value="Asia/Dubai"><option value="Asia/Kolkata"><option value="Asia/Singapore"><option value="Asia/Tokyo"><option value="Australia/Sydney"></datalist></p>
+  <p><label for="date_format">Date format</label><br><select id="date_format" name="date_format">{{range .Formats}}<option value="{{.Layout}}" {{if eq .Layout $p.DateFormat}}selected{{end}}>{{.Label}}</option>{{end}}</select></p>
+  <p><label for="currency">Default currency (3-letter code)</label><br><input id="currency" name="currency" required maxlength="3" size="3" value="{{$p.Currency}}"></p>
+  <p><label for="allowed_ext">Allowed upload types, comma separated (empty = any type). Always blocked: {{.Blocked}}</label><br><input id="allowed_ext" name="allowed_ext" maxlength="1000" placeholder="pdf, png, jpg, zip" value="{{$p.AllowedExt}}"></p>
+  <button type="submit" {{if $.Demo}}disabled{{end}}>Save settings</button>
+</form>
+<p><small>Upload size limit and email are set in <code>.env</code>; see the install guide.</small></p>
+{{end}}
+{{end}}

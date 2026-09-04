@@ -4,7 +4,8 @@
 <p>This invitation is for <strong>{{.Email}}</strong>.</p>
 <form method="post" action="/invite/{{.Token}}">
   <p><label for="name">Your name</label><br><input id="name" name="name" required maxlength="200" value="{{$.Form.name}}"></p>
-  <p><label for="password">Choose a password (at least 12 characters)</label><br><input id="password" name="password" type="password" required minlength="12" autocomplete="new-password"></p>
+  <p><label for="password">Choose a password (12 to 200 characters, not a common password)</label><br><input id="password" name="password" type="password" required minlength="12" maxlength="200" autocomplete="new-password"></p>
+  {{if eq .Role "client"}}<p><label><input type="checkbox" name="terms" value="1" required> I understand that {{.Workspace}} runs this portal, that my comments, approvals and sign-offs are recorded with my name and the time, and that sign-off is a record of completion, not a legal electronic signature.</label></p>{{end}}
   <button type="submit">Create my account</button>
 </form>
 {{end}}

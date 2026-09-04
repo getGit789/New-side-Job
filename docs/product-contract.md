@@ -221,7 +221,7 @@ Everything else is rejected with `409 Conflict` and the current state.
 
 Audit events (always recorded, owner-visible, exported):
 
-`auth.login`, `auth.login_failed`, `auth.logout`, `auth.password_changed`, `auth.email_changed`, `invitation.sent`, `invitation.accepted`, `invitation.revoked`, `member.removed`, `client_org.created`, `client_org.archived`, `client_org.deleted`, `project.created`, `project.closed`, `project.reopened`, `project.deleted`, `milestone.visibility_changed`, `version.shared`, `version.withdrawn`, `decision.revision_requested`, `decision.approved`, `deliverable.reopened`, `deliverable.waived`, `invoice.status_changed`, `file.downloaded`, `file.deleted`, `signoff.recorded`, `export.created`, `settings.changed`, `setup.completed`.
+`auth.login`, `auth.login_failed`, `auth.logout`, `auth.password_changed`, `auth.email_changed`, `invitation.sent`, `invitation.accepted`, `invitation.revoked`, `member.removed`, `client_org.created`, `client_org.archived`, `client_org.deleted`, `project.created`, `project.closed`, `project.reopened`, `project.deleted`, `milestone.visibility_changed`, `version.shared`, `version.withdrawn`, `decision.revision_requested`, `decision.approved`, `deliverable.reopened`, `deliverable.waived`, `deliverable.deleted`, `invoice.status_changed`, `invoice.updated`, `comment.deleted`, `file.downloaded`, `file.deleted`, `signoff.recorded`, `export.created`, `settings.changed`, `setup.completed`.
 
 Notifications (in-app always; email per user preference, default on):
 

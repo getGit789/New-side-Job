@@ -15,6 +15,7 @@ import (
 
 func (s *Server) invoiceRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects/{id}/invoices", s.requireStaff(s.invoiceCreate))
+	mux.HandleFunc("POST /invoices/{id}", s.requireStaff(s.invoiceEdit))
 	mux.HandleFunc("POST /invoices/{id}/status", s.requireStaff(s.invoiceStatus))
 	mux.HandleFunc("GET /invoices/{id}/document", s.requireStaff(s.invoiceDocument))
 }
@@ -40,48 +41,54 @@ func parseMoney(s string) (int64, error) {
 	return w*100 + f, nil
 }
 
+// invoiceForm reads and validates the shared invoice fields. The document upload, if any, is already saved.
+func (s *Server) invoiceForm(w http.ResponseWriter, r *http.Request) (f map[string]string, amount int64, cur string, up *upload, cleanup func(), err error) {
+	up, err = s.saveUpload(w, r, "document")
+	if err != nil {
+		return nil, 0, "", nil, func() {}, err
+	}
+	f = map[string]string{}
+	for k := range r.PostForm {
+		f[k] = strings.TrimSpace(r.PostForm.Get(k))
+	}
+	cleanup = func() {
+		if up != nil {
+			s.store.Delete(up.Info.Key)
+		}
+	}
+	amount, amountErr := parseMoney(f["amount"])
+	cur = strings.ToUpper(f["currency"])
+	switch {
+	case !within(f["number"], 1, 60):
+		err = invalid("Invoice number must be 1–60 characters.")
+	case amountErr != nil:
+		err = invalid("Amount must look like 1250.00.")
+	case len(cur) != 3:
+		err = invalid("Currency must be a 3-letter code such as USD.")
+	case f["due_date"] != "" && len(f["due_date"]) != 10:
+		err = invalid("Due date must look like 2026-12-31.")
+	case f["visibility"] != "internal" && f["visibility"] != "client":
+		err = invalid("Visibility must be internal or client.")
+	case f["payment_url"] != "":
+		if u, perr := url.Parse(f["payment_url"]); perr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || len(f["payment_url"]) > 2048 {
+			err = invalid("Payment link must be an absolute http(s) URL.")
+		}
+	}
+	if err != nil {
+		cleanup()
+	}
+	return
+}
+
 func (s *Server) invoiceCreate(w http.ResponseWriter, r *http.Request) {
 	p, err := s.loadWritableProject(r, r.PathValue("id"))
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	up, err := s.saveUpload(w, r, "document")
+	f, amount, cur, up, cleanup, err := s.invoiceForm(w, r)
 	if err != nil {
 		s.fail(w, r, err)
-		return
-	}
-	f := map[string]string{}
-	for k := range r.PostForm {
-		f[k] = strings.TrimSpace(r.PostForm.Get(k))
-	}
-	cleanup := func() {
-		if up != nil {
-			s.store.Delete(up.Info.Key)
-		}
-	}
-	amount, amountErr := parseMoney(f["amount"])
-	cur := strings.ToUpper(f["currency"])
-	var vErr error
-	switch {
-	case !within(f["number"], 1, 60):
-		vErr = invalid("Invoice number must be 1–60 characters.")
-	case amountErr != nil:
-		vErr = invalid("Amount must look like 1250.00.")
-	case len(cur) != 3:
-		vErr = invalid("Currency must be a 3-letter code such as USD.")
-	case f["due_date"] != "" && len(f["due_date"]) != 10:
-		vErr = invalid("Due date must look like 2026-12-31.")
-	case f["visibility"] != "internal" && f["visibility"] != "client":
-		vErr = invalid("Visibility must be internal or client.")
-	case f["payment_url"] != "":
-		if u, err := url.Parse(f["payment_url"]); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || len(f["payment_url"]) > 2048 {
-			vErr = invalid("Payment link must be an absolute http(s) URL.")
-		}
-	}
-	if vErr != nil {
-		cleanup()
-		s.fail(w, r, vErr)
 		return
 	}
 	id, now, uid := db.NewID(), db.Now(), s.user(r).ID
@@ -96,6 +103,54 @@ func (s *Server) invoiceCreate(w http.ResponseWriter, r *http.Request) {
 		_, err := tx.Exec(`INSERT INTO invoices (id, project_id, number, amount_cents, currency, due_date, payment_url, file_id, visibility, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			id, p.ID, f["number"], amount, cur, f["due_date"], f["payment_url"], fileID, f["visibility"], uid, now, now)
 		return err
+	})
+	if err != nil {
+		cleanup()
+		s.fail(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/projects/"+p.ID, http.StatusSeeOther)
+}
+
+// invoiceEdit changes the record while it is draft or sent; paid and canceled invoices are frozen (contract §2).
+func (s *Server) invoiceEdit(w http.ResponseWriter, r *http.Request) {
+	p, err := s.projectOf(r, "invoices", r.PathValue("id"), true)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	f, amount, cur, up, cleanup, err := s.invoiceForm(w, r)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	uid := s.user(r).ID
+	err = s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+		var status string
+		var oldFile sql.NullString
+		if err := tx.QueryRow(`SELECT status, file_id FROM invoices WHERE id = ?`, r.PathValue("id")).Scan(&status, &oldFile); err != nil {
+			return err
+		}
+		if status != string(domain.InvoiceDraft) && status != string(domain.InvoiceSent) {
+			return fmt.Errorf("%w: a %s invoice cannot be edited", domain.ErrTransition, status)
+		}
+		fileID := oldFile
+		if up != nil {
+			if err := insertFile(tx, up, uid); err != nil {
+				return err
+			}
+			if oldFile.Valid {
+				if _, err := tx.Exec(`UPDATE files SET deleted_at = ? WHERE id = ?`, db.Now(), oldFile.String); err != nil {
+					return err
+				}
+			}
+			fileID = sql.NullString{String: up.ID, Valid: true}
+		}
+		if _, err := tx.Exec(`UPDATE invoices SET number = ?, amount_cents = ?, currency = ?, due_date = ?, payment_url = ?, file_id = ?, visibility = ?, updated_at = ? WHERE id = ?`,
+			f["number"], amount, cur, f["due_date"], f["payment_url"], fileID, f["visibility"], db.Now(), r.PathValue("id")); err != nil {
+			return err
+		}
+		return s.audit(r.Context(), tx, r, "invoice.updated", "invoice", r.PathValue("id"), map[string]any{"project_id": p.ID, "number": f["number"], "amount_cents": amount, "currency": cur, "document_replaced": up != nil})
 	})
 	if err != nil {
 		cleanup()

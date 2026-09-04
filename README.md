@@ -41,7 +41,13 @@ Everyone: in-app notifications plus queued email with dedupe keys, so no event i
 with re-authentication; password reset by single-use link.
 
 Owner: CSV client import and export, project hand-over export (zip), permanent deletion of closed projects and
-archived clients.
+archived clients, workspace settings (name, logo, contact details, time zone, date format, default currency,
+allowed upload types).
+
+Also (Phase 7): search across clients, projects and deliverables; change own email with re-authentication;
+per-user email notification switch; delete own comment within 15 minutes (tombstone stays); edit invoice records
+while draft or sent; delete a deliverable while nothing was shared; terms notice on client invitations; passwords
+checked against the shipped 10k common-password list.
 
 Demo: `BRIEFRELAY_ENV=demo` seeds the sample workspace at start, shows the sample logins on the login page,
 never sends email, caps uploads at 5 MB, blocks password changes, and resets everything every hour.

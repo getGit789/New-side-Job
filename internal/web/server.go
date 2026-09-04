@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -46,29 +47,40 @@ type Server struct {
 	limiter   *ipLimiter
 	authLimit *ipLimiter
 	installed atomic.Bool
-	dummyHash string // keeps failed logins for unknown users as slow as real ones
+	prefs     atomic.Pointer[prefs] // workspace settings; see settings.go
+	dummyHash string                // keeps failed logins for unknown users as slow as real ones
 }
 
-var funcs = template.FuncMap{
-	"date": func(s string) string {
-		t, err := db.ParseTime(s)
-		if err != nil {
-			return s
-		}
-		return t.Format("2006-01-02 15:04")
-	},
-	"money": func(cents int64, cur string) string {
-		return fmt.Sprintf("%s %d.%02d", cur, cents/100, cents%100)
-	},
-	"human": func(s string) string { return strings.ReplaceAll(s, "_", " ") },
-	"add":   func(a, b int) int { return a + b },
+// funcs are the template helpers. date renders in the workspace time zone and format (plan §5.4).
+func (s *Server) funcs() template.FuncMap {
+	return template.FuncMap{
+		"date": func(v string) string {
+			t, err := db.ParseTime(v)
+			if err != nil {
+				return v
+			}
+			p := s.prefs.Load()
+			return t.In(p.loc).Format(p.DateFormat + " 15:04")
+		},
+		"money": func(cents int64, cur string) string {
+			return fmt.Sprintf("%s %d.%02d", cur, cents/100, cents%100)
+		},
+		"amount": func(cents int64) string { return fmt.Sprintf("%d.%02d", cents/100, cents%100) },
+		"human":  func(s string) string { return strings.ReplaceAll(s, "_", " ") },
+		"add":    func(a, b int) int { return a + b },
+	}
 }
+
+func sortStrings(v []string) []string { sort.Strings(v); return v }
 
 func New(cfg config.Config, d *db.DB, q *jobs.Queue, m *mail.Mailer, st *storage.Local, log *slog.Logger) (*Server, error) {
 	s := &Server{cfg: cfg, db: d, q: q, mail: m, store: st, log: log, pages: map[string]*template.Template{},
 		limiter: newIPLimiter(20, 40), authLimit: newIPLimiter(0.1, 5), dummyHash: auth.HashPassword("dummy")}
-	for _, p := range []string{"setup", "login", "home", "error", "clients", "client", "projects", "project", "deliverable", "team", "invite", "activity", "notifications", "portal_project", "portal_deliverable", "portal_intake", "account", "forgot", "reset"} {
-		t, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/layout.html", "templates/"+p+".html")
+	if err := s.loadPrefs(context.Background()); err != nil {
+		return nil, err
+	}
+	for _, p := range []string{"setup", "login", "home", "error", "clients", "client", "projects", "project", "deliverable", "team", "invite", "activity", "notifications", "portal_project", "portal_deliverable", "portal_intake", "account", "forgot", "reset", "settings", "search"} {
+		t, err := template.New("").Funcs(s.funcs()).ParseFS(templateFS, "templates/layout.html", "templates/"+p+".html")
 		if err != nil {
 			return nil, err
 		}
@@ -100,6 +112,7 @@ func (s *Server) Handler() http.Handler {
 	s.portalRoutes(mux)
 	s.accountRoutes(mux)
 	s.exportRoutes(mux)
+	s.settingsRoutes(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		s.errorPage(w, r, http.StatusNotFound, "That page does not exist.")
 	})
@@ -236,22 +249,24 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge in
 // ---- rendering ----
 
 type view struct {
-	User    *auth.User
-	Role    domain.Role
-	IsOwner bool
-	Unread  int
-	Demo    bool
-	Title   string
-	Error   string
-	Form    map[string]string
-	Status  string
-	Message string
-	Data    any
+	User      *auth.User
+	Role      domain.Role
+	IsOwner   bool
+	Unread    int
+	Demo      bool
+	Workspace *prefs
+	Title     string
+	Error     string
+	Form      map[string]string
+	Status    string
+	Message   string
+	Data      any
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page string, v view) {
 	v.User = s.user(r)
 	v.Demo = s.cfg.IsDemo()
+	v.Workspace = s.prefs.Load()
 	if v.User != nil {
 		v.Role = domain.Role(v.User.Role)
 		v.IsOwner = v.Role == domain.RoleOwner
@@ -336,8 +351,8 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		v.Error = "Workspace name and your name are required."
 	case !strings.Contains(email, "@"):
 		v.Error = "Enter a valid email address."
-	case len(form["password"]) < 12:
-		v.Error = "Password must be at least 12 characters."
+	case auth.CheckPassword(form["password"]) != nil:
+		v.Error = passwordRule
 	}
 	if v.Error != "" {
 		s.render(w, r, http.StatusUnprocessableEntity, "setup", v)
@@ -385,9 +400,13 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.installed.Store(true)
+	s.logErr("load prefs", s.loadPrefs(r.Context()))
 	s.setSessionCookie(w, token, int(auth.SessionTTL.Seconds()))
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
+
+// passwordRule is the one user-facing sentence for contract §8's password rule.
+const passwordRule = "Password must be 12 to 200 characters and not a commonly used password."
 
 func (s *Server) loginForm(w http.ResponseWriter, r *http.Request) {
 	if s.user(r) != nil {

@@ -5,7 +5,7 @@
   <p><label for="workspace">Workspace name</label><br><input id="workspace" name="workspace" required maxlength="120" value="{{.Form.workspace}}"></p>
   <p><label for="name">Your name</label><br><input id="name" name="name" required maxlength="120" value="{{.Form.name}}"></p>
   <p><label for="email">Email</label><br><input id="email" name="email" type="email" required maxlength="254" autocomplete="username" value="{{.Form.email}}"></p>
-  <p><label for="password">Password (at least 12 characters)</label><br><input id="password" name="password" type="password" required minlength="12" autocomplete="new-password"></p>
+  <p><label for="password">Password (12 to 200 characters, not a common password)</label><br><input id="password" name="password" type="password" required minlength="12" maxlength="200" autocomplete="new-password"></p>
   <button type="submit">Create owner account</button>
 </form>
 {{end}}

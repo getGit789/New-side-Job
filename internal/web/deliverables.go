@@ -44,6 +44,8 @@ func (s *Server) deliverableRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /versions/{id}/download", s.requireStaff(s.versionDownload))
 	mux.HandleFunc("POST /versions/{id}/comment", s.requireStaff(s.versionComment))
 	mux.HandleFunc("POST /deliverables/{id}/waive", s.requireOwner(s.deliverableWaive))
+	mux.HandleFunc("POST /deliverables/{id}/delete", s.requireStaff(s.deliverableDelete))
+	mux.HandleFunc("POST /comments/{id}/delete", s.requireStaff(s.commentDelete))
 }
 
 func (s *Server) loadDecisions(r *http.Request, versionID string) ([]Decision, error) {
@@ -130,6 +132,7 @@ type deliverablePage struct {
 	Latest      string // state of the newest version
 	NeedsReason bool
 	CanAdd      bool
+	CanDelete   bool // no version was ever shared (contract §2)
 	Waiver      string
 }
 
@@ -172,7 +175,49 @@ func (s *Server) deliverableShow(w http.ResponseWriter, r *http.Request) {
 	}
 	needs, err := domain.NewVersion(domain.VersionState(pg.Latest))
 	pg.NeedsReason, pg.CanAdd = needs, err == nil && !p.Closed()
+	pg.CanDelete = !p.Closed()
+	for _, v := range pg.Versions {
+		pg.CanDelete = pg.CanDelete && v.State == string(domain.Draft)
+	}
 	s.render(w, r, http.StatusOK, "deliverable", view{Title: d.Title, Data: pg})
+}
+
+// deliverableDelete removes a deliverable that was never shared. Anything shared is permanent; withdraw instead.
+func (s *Server) deliverableDelete(w http.ResponseWriter, r *http.Request) {
+	d, p, err := s.loadDeliverable(r, r.PathValue("id"), true)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	err = s.db.Tx(r.Context(), func(tx *sql.Tx) error {
+		var shared int
+		if err := tx.QueryRow(`SELECT count(*) FROM deliverable_versions WHERE deliverable_id = ? AND state != 'draft'`, d.ID).Scan(&shared); err != nil {
+			return err
+		}
+		if shared > 0 {
+			return fmt.Errorf("%w: a deliverable with a shared version cannot be deleted; withdraw it instead", domain.ErrTransition)
+		}
+		if _, err := tx.Exec(`UPDATE files SET deleted_at = ? WHERE id IN (SELECT file_id FROM deliverable_versions WHERE deliverable_id = ? AND file_id IS NOT NULL)`, db.Now(), d.ID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM comments WHERE target_type = 'version' AND target_id IN (SELECT id FROM deliverable_versions WHERE deliverable_id = ?)`, d.ID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM deliverables WHERE id = ?`, d.ID); err != nil {
+			return err
+		}
+		return s.audit(r.Context(), tx, r, "deliverable.deleted", "deliverable", d.ID, map[string]any{"project_id": p.ID, "title": d.Title})
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/projects/"+p.ID, http.StatusSeeOther)
+}
+
+// commentDelete: staff side of the 15-minute rule. The shared logic lives in deleteOwnComment.
+func (s *Server) commentDelete(w http.ResponseWriter, r *http.Request) {
+	s.deleteOwnComment(w, r, false)
 }
 
 func (s *Server) deliverableEdit(w http.ResponseWriter, r *http.Request) {
@@ -202,7 +247,7 @@ func (s *Server) deliverableEdit(w http.ResponseWriter, r *http.Request) {
 
 // ---- uploads ----
 
-// ponytail: fixed deny-list; a settings-driven allow-list is a v1.1 candidate.
+// blockedExt always applies; the owner's allow-list (Settings) narrows it further (contract §8).
 var blockedExt = map[string]bool{".exe": true, ".bat": true, ".cmd": true, ".com": true, ".scr": true, ".msi": true, ".ps1": true, ".sh": true,
 	".php": true, ".phtml": true, ".js": true, ".mjs": true, ".html": true, ".htm": true, ".svg": true, ".jar": true, ".vbs": true}
 
@@ -233,8 +278,12 @@ func (s *Server) saveUpload(w http.ResponseWriter, r *http.Request, field string
 	if name == "" || name == "." || len(name) > 255 {
 		return nil, invalid("File name is not usable.")
 	}
-	if blockedExt[strings.ToLower(filepath.Ext(name))] {
+	ext := strings.ToLower(filepath.Ext(name))
+	if blockedExt[ext] {
 		return nil, invalid("That file type is not allowed.")
+	}
+	if allow := s.prefs.Load().ext; allow != nil && !allow[ext] && field != "logo" {
+		return nil, invalid("That file type is not on the allowed list (" + s.prefs.Load().AllowedExt + ").")
 	}
 	info, err := s.store.Save(fh, maxBytes)
 	if errors.Is(err, storage.ErrTooLarge) {

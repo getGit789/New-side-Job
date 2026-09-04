@@ -53,8 +53,12 @@ func (s *Server) notify(tx *sql.Tx, r *http.Request, users []string, kind, recor
 			return err
 		}
 		var email, name string
-		if err := tx.QueryRow(`SELECT email, name FROM users WHERE id = ?`, uid).Scan(&email, &name); err != nil {
+		var wantsMail bool
+		if err := tx.QueryRow(`SELECT email, name, email_notifications FROM users WHERE id = ?`, uid).Scan(&email, &name, &wantsMail); err != nil {
 			return err
+		}
+		if !wantsMail {
+			continue // in-app only: the user turned email off (contract §7)
 		}
 		body := fmt.Sprintf("Hi %s,\n\n%s\n\nOpen it here:\n%s%s\n", name, title, s.cfg.BaseURL.String(), path)
 		if err := jobs.Enqueue(r.Context(), tx, "mail.send", mail.Job{To: email, Subject: title, Body: body},

@@ -9,6 +9,8 @@ staff assignment, fixed intake brief, milestones with client visibility; deliver
 versions, share and withdraw, comments, revision requests and approvals bound to one version, waivers and final
 sign-off; invoice records with document and payment link; in-app and email notifications; audit log; CSV client
 import and export; project hand-over export; password reset; backup and restore; health endpoint; sample data
-and demo mode with hourly reset.
+and demo mode with hourly reset; workspace settings (name, logo, contact, time zone, date format, currency,
+allowed upload types); search; email change and notification preference per user; comment deletion with
+tombstone; invoice editing; deliverable deletion while unshared; client terms notice; common-password check.
 
 Update notes: none (fresh install). New settings: none beyond `.env.example`.

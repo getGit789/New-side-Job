@@ -6,6 +6,9 @@
 <p>{{if $d.Required}}Required for sign-off.{{else}}Optional.{{end}} {{if .Latest}}Current state: <strong>{{human .Latest}}</strong>.{{else}}No version yet.{{end}}</p>
 {{if $d.Description}}<p>{{$d.Description}}</p>{{end}}
 {{if .Waiver}}<p><em>Waived by the owner: {{.Waiver}}</em></p>{{end}}
+{{if .CanDelete}}
+<form method="post" action="/deliverables/{{$d.ID}}/delete" onsubmit="return confirm('Delete this deliverable and its drafts?')"><button type="submit">Delete deliverable</button> <small>Possible only while nothing has been shared.</small></form>
+{{end}}
 {{if not $p.Closed}}
 <details>
 <summary>Edit deliverable</summary>
@@ -27,7 +30,7 @@
 {{if .Note}}<p>{{.Note}}</p>{{end}}
 {{if .ReopenReason}}<p><em>Reopened: {{.ReopenReason}}</em></p>{{end}}
 {{if .Decisions}}<ul>{{range .Decisions}}<li><strong>{{human .Type}}</strong> by {{.By}} on {{date .CreatedAt}}{{if .Note}}: {{.Note}}{{end}}</li>{{end}}</ul>{{end}}
-{{if .Comments}}<ul>{{range .Comments}}<li>[{{.Visibility}}] {{.Author}} ({{date .CreatedAt}}): {{.Body}}</li>{{end}}</ul>{{end}}
+{{if .Comments}}<ul>{{range .Comments}}<li>[{{.Visibility}}] {{.Author}} ({{date .CreatedAt}}): {{.Body}}{{if and .CanDelete (not $p.Closed)}} <form method="post" action="/comments/{{.ID}}/delete" style="display:inline"><button type="submit">Delete</button></form>{{end}}</li>{{end}}</ul>{{end}}
 {{if not $p.Closed}}
 <form method="post" action="/versions/{{.ID}}/comment">
   <label for="c-{{.ID}}">Comment</label> <input id="c-{{.ID}}" name="body" required maxlength="10000">

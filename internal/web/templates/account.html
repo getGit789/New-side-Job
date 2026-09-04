@@ -1,12 +1,23 @@
 {{define "content"}}
 <h1>Account</h1>
 <p>{{.User.Name}} · {{.User.Email}} · {{human .User.Role}}</p>
+<h2>Email notifications</h2>
+<form method="post" action="/account/notifications">
+  <p><label><input type="checkbox" name="email_notifications" value="1" {{if .Data.EmailNotifications}}checked{{end}}> Send me an email when something needs my attention</label> <small>In-app notifications are always on.</small></p>
+  <button type="submit">Save</button>
+</form>
 <h2>Change password</h2>
 {{if .Demo}}<p>Passwords cannot be changed in the demo.</p>{{else}}
 <form method="post" action="/account/password">
   <p><label for="current">Current password</label><br><input id="current" name="current" type="password" required autocomplete="current-password"></p>
-  <p><label for="password">New password (at least 12 characters)</label><br><input id="password" name="password" type="password" required minlength="12" autocomplete="new-password"></p>
+  <p><label for="password">New password (12 to 200 characters, not a common password)</label><br><input id="password" name="password" type="password" required minlength="12" maxlength="200" autocomplete="new-password"></p>
   <button type="submit">Change password</button> <small>Other devices are logged out.</small>
+</form>
+<h2>Change email</h2>
+<form method="post" action="/account/email">
+  <p><label for="ecurrent">Current password</label><br><input id="ecurrent" name="current" type="password" required autocomplete="current-password"></p>
+  <p><label for="email">New email</label><br><input id="email" name="email" type="email" required maxlength="254" value="{{.User.Email}}"></p>
+  <button type="submit">Change email</button>
 </form>
 {{end}}
 {{end}}

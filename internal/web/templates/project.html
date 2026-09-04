@@ -9,7 +9,7 @@
 <p>Version {{.Intake.Version}} · {{if eq .Intake.Status "submitted"}}submitted {{date .Intake.SubmittedAt}} by {{.Intake.SubmittedBy}}{{else}}draft, not submitted yet{{end}}</p>
 {{if eq .Intake.Status "submitted"}}<dl>{{range .IntakeFields}}{{$v := index $.Data.Intake.Answers .Key}}{{if $v}}<dt>{{.Label}}</dt><dd>{{$v}}</dd>{{end}}{{end}}</dl>{{end}}
 {{else}}<p>The client has not started the brief.</p>{{end}}
-{{if .IntakeComments}}<ul>{{range .IntakeComments}}<li>[{{.Visibility}}] {{.Author}} ({{date .CreatedAt}}): {{.Body}}</li>{{end}}</ul>{{end}}
+{{if .IntakeComments}}<ul>{{range .IntakeComments}}<li>[{{.Visibility}}] {{.Author}} ({{date .CreatedAt}}): {{.Body}}{{if and .CanDelete (not $p.Closed)}} <form method="post" action="/comments/{{.ID}}/delete" style="display:inline"><button type="submit">Delete</button></form>{{end}}</li>{{end}}</ul>{{end}}
 {{if not $p.Closed}}
 <form method="post" action="/projects/{{$p.ID}}/intake/comment">
   <label for="clarify">Ask the client a question about the brief</label> <input id="clarify" name="body" required maxlength="10000">
@@ -103,10 +103,23 @@
 <table>
 <thead><tr><th>Number</th><th>Amount</th><th>Due</th><th>Status</th><th>Visible to client</th><th>Document</th><th>Payment link</th>{{if not $p.Closed}}<th></th>{{end}}</tr></thead>
 <tbody>{{range .Invoices}}<tr>
+{{$editable := and (not $p.Closed) (or (eq .Status "draft") (eq .Status "sent"))}}
+{{if $editable}}
+<form method="post" action="/invoices/{{.ID}}" id="inv-{{.ID}}" enctype="multipart/form-data"></form>
+<td><input form="inv-{{.ID}}" name="number" value="{{.Number}}" required maxlength="60" size="10" aria-label="Invoice number"></td>
+<td><input form="inv-{{.ID}}" name="amount" value="{{amount .AmountCents}}" required inputmode="decimal" size="9" aria-label="Amount"> <input form="inv-{{.ID}}" name="currency" value="{{.Currency}}" required maxlength="3" size="3" aria-label="Currency"></td>
+<td><input form="inv-{{.ID}}" name="due_date" type="date" value="{{.DueDate}}" aria-label="Due date"></td>
+<td>{{.Status}}</td>
+<td><select form="inv-{{.ID}}" name="visibility" aria-label="Visible to client"><option value="client" {{if eq .Visibility "client"}}selected{{end}}>yes</option><option value="internal" {{if eq .Visibility "internal"}}selected{{end}}>no</option></select></td>
+<td>{{if .FileID.Valid}}<a href="/invoices/{{.ID}}/document">Download</a><br>{{end}}<input form="inv-{{.ID}}" name="document" type="file" aria-label="Replace document"></td>
+<td><input form="inv-{{.ID}}" name="payment_url" type="url" value="{{.PaymentURL}}" maxlength="2048" size="14" aria-label="Payment link"></td>
+{{else}}
 <td>{{.Number}}</td><td>{{money .AmountCents .Currency}}</td><td>{{.DueDate}}</td><td>{{.Status}}</td><td>{{if eq .Visibility "client"}}yes{{else}}no{{end}}</td>
 <td>{{if .FileID.Valid}}<a href="/invoices/{{.ID}}/document">Download</a>{{else}}—{{end}}</td>
 <td>{{if .PaymentURL}}<a href="{{.PaymentURL}}" rel="noopener noreferrer">Open</a>{{else}}—{{end}}</td>
+{{end}}
 {{if not $p.Closed}}<td>
+{{if $editable}}<button form="inv-{{.ID}}" type="submit">Save</button>{{end}}
 {{if eq .Status "draft"}}<form method="post" action="/invoices/{{.ID}}/status" style="display:inline"><input type="hidden" name="to" value="sent"><button type="submit">Mark sent</button></form>{{end}}
 {{if eq .Status "sent"}}<form method="post" action="/invoices/{{.ID}}/status" style="display:inline"><input type="hidden" name="to" value="paid"><button type="submit">Mark paid</button></form>{{end}}
 {{if or (eq .Status "draft") (eq .Status "sent")}}<form method="post" action="/invoices/{{.ID}}/status" style="display:inline"><input type="hidden" name="to" value="canceled"><button type="submit">Cancel</button></form>{{end}}
@@ -119,7 +132,7 @@
 <summary>Add invoice record</summary>
 <form method="post" action="/projects/{{$p.ID}}/invoices" enctype="multipart/form-data">
   <p><label for="inum">Invoice number</label><br><input id="inum" name="number" required maxlength="60"></p>
-  <p><label for="iamt">Amount</label><br><input id="iamt" name="amount" required inputmode="decimal" placeholder="1250.00"> <label for="icur">Currency</label> <input id="icur" name="currency" required maxlength="3" value="USD" size="3"></p>
+  <p><label for="iamt">Amount</label><br><input id="iamt" name="amount" required inputmode="decimal" placeholder="1250.00"> <label for="icur">Currency</label> <input id="icur" name="currency" required maxlength="3" value="{{$.Workspace.Currency}}" size="3"></p>
   <p><label for="idue">Due date</label><br><input id="idue" name="due_date" type="date"></p>
   <p><label for="iurl">External payment link</label><br><input id="iurl" name="payment_url" type="url" maxlength="2048"></p>
   <p><label for="idoc">Invoice document (PDF)</label><br><input id="idoc" name="document" type="file"></p>

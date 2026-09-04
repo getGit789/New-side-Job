@@ -8,8 +8,8 @@
 <body>
 <header>
 <nav aria-label="Main">
-<a href="/">BriefRelay</a>
-{{if .User}}{{if .Role.IsStaff}} · <a href="/clients">Clients</a> · <a href="/projects">Projects</a>{{end}}{{if .IsOwner}} · <a href="/team">Team</a> · <a href="/activity">Activity</a>{{end}}
+<a href="/">{{if .Workspace.HasLogo}}<img src="/logo" alt="" height="24"> {{end}}{{.Workspace.Name}}</a>
+{{if .User}}{{if .Role.IsStaff}} · <a href="/clients">Clients</a> · <a href="/projects">Projects</a> · <a href="/search">Search</a>{{end}}{{if .IsOwner}} · <a href="/team">Team</a> · <a href="/activity">Activity</a> · <a href="/settings">Settings</a>{{end}}
  · <a href="/notifications">Notifications{{if .Unread}} ({{.Unread}}){{end}}</a> · <a href="/account">{{.User.Name}}</a> <form method="post" action="/logout" style="display:inline"><button type="submit">Log out</button></form>{{end}}
 </nav>
 </header>
@@ -18,6 +18,7 @@
 {{if .Error}}<p role="alert">{{.Error}}</p>{{end}}
 {{if .Message}}<p role="status">{{.Message}}</p>{{end}}
 {{template "content" .}}
+{{if .Workspace.Contact}}<footer><p><small>{{.Workspace.Contact}}</small></p></footer>{{end}}
 </main>
 </body>
 </html>{{end}}

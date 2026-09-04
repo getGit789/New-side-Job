@@ -4,7 +4,7 @@
 <p><a href="/portal/projects/{{$p.ID}}">← {{$p.Name}}</a></p>
 <h1>Project brief</h1>
 {{if .Intake.ID}}<p>Version {{.Intake.Version}} · {{if eq .Intake.Status "submitted"}}submitted {{date .Intake.SubmittedAt}}. Saving again starts a new version.{{else}}draft{{end}}</p>{{end}}
-{{if .Comments}}<h2>Questions from the team</h2><ul>{{range .Comments}}<li>{{.Author}} ({{date .CreatedAt}}): {{.Body}}</li>{{end}}</ul>
+{{if .Comments}}<h2>Questions from the team</h2><ul>{{range .Comments}}<li>{{.Author}} ({{date .CreatedAt}}): {{.Body}}{{if and .CanDelete (not $p.Closed)}} <form method="post" action="/portal/comments/{{.ID}}/delete" style="display:inline"><button type="submit">Delete</button></form>{{end}}</li>{{end}}</ul>
 {{if .Editable}}<form method="post" action="/portal/projects/{{$p.ID}}/intake/comment"><label for="reply">Reply</label> <input id="reply" name="body" required maxlength="10000"> <button type="submit">Send</button></form>{{end}}{{end}}
 {{if .Editable}}
 <form method="post" action="/portal/projects/{{$p.ID}}/intake">

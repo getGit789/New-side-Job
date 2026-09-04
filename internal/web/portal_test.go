@@ -14,7 +14,7 @@ func acceptInvite(e *env, name string) *browser {
 	payload := e.scalar(`SELECT payload FROM jobs WHERE kind = 'mail.send' AND CAST(payload AS TEXT) LIKE '%/invite/%' ORDER BY id DESC LIMIT 1`)
 	token := inviteRe.FindStringSubmatch(payload)[1]
 	b := e.browser()
-	b.want(b.post("/invite/"+token, url.Values{"name": {name}, "password": {"another-long-password"}}), 303, "accept invite "+name)
+	b.want(b.post("/invite/"+token, url.Values{"name": {name}, "password": {"another-long-password"}, "terms": {"1"}}), 303, "accept invite "+name)
 	return b
 }
 
