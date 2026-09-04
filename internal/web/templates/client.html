@@ -1,49 +1,60 @@
 {{define "content"}}
 {{with .Data}}
-<h1>{{.Client.Name}} {{if .Client.ArchivedAt.Valid}}<small>(archived)</small>{{end}}</h1>
-<p>{{if .Client.Email}}Email: {{.Client.Email}}<br>{{end}}{{if .Client.Phone}}Phone: {{.Client.Phone}}<br>{{end}}Created {{date .Client.CreatedAt}}</p>
-{{if .Client.Notes}}<h2>Internal notes</h2><p>{{.Client.Notes}}</p>{{end}}
-{{if $.IsOwner}}
-<details>
-<summary>Edit client</summary>
-<form method="post" action="/clients/{{.Client.ID}}">
-  <p><label for="name">Organization name</label><br><input id="name" name="name" required maxlength="200" value="{{.Client.Name}}"></p>
-  <p><label for="email">Email</label><br><input id="email" name="email" type="email" maxlength="254" value="{{.Client.Email}}"></p>
-  <p><label for="phone">Phone</label><br><input id="phone" name="phone" maxlength="60" value="{{.Client.Phone}}"></p>
-  <p><label for="notes">Internal notes</label><br><textarea id="notes" name="notes" rows="3" maxlength="10000">{{.Client.Notes}}</textarea></p>
-  <button type="submit">Save</button>
-</form>
+<div class="page"><div>
+<p class="crumbs"><a href="/clients">Clients</a></p>
+<h1>{{.Client.Name}} {{if .Client.ArchivedAt.Valid}}<span class="state -closed">archived</span>{{end}}</h1>
+<ul class="meta">{{if .Client.Email}}<li>{{.Client.Email}}</li>{{end}}{{if .Client.Phone}}<li>{{.Client.Phone}}</li>{{end}}<li>Client since {{date .Client.CreatedAt}}</li></ul>
+</div>
+{{if $.IsOwner}}<div class="actions">
 {{if .Client.ArchivedAt.Valid}}<form method="post" action="/clients/{{.Client.ID}}/unarchive"><button type="submit">Unarchive</button></form>
-<form method="post" action="/clients/{{.Client.ID}}/delete" onsubmit="return confirm('Delete this client, all its projects, files and portal accounts? This cannot be undone.')"><button type="submit">Delete permanently</button> <small>Export each project first if you need the record.</small></form>
-{{else}}<form method="post" action="/clients/{{.Client.ID}}/archive"><button type="submit">Archive client</button> <small>All projects must be closed first.</small></form>{{end}}
+<form method="post" action="/clients/{{.Client.ID}}/delete" data-confirm="Delete this client, all its projects, files and portal accounts? This cannot be undone."><button type="submit" class="-danger">Delete permanently</button></form>
+{{else}}<form method="post" action="/clients/{{.Client.ID}}/archive"><button type="submit">Archive client</button></form>{{end}}
+</div>{{end}}
+</div>
+{{if .Client.Notes}}<div class="card -tint"><h3>Internal notes</h3><p class="mt-s">{{.Client.Notes}}</p></div>{{end}}
+{{if $.IsOwner}}
+<details class="edit mt"><summary>Edit client details</summary>
+<div class="in card"><form method="post" action="/clients/{{.Client.ID}}">
+  <div class="fields">
+    <div class="field"><label for="name">Organization name</label><input id="name" name="name" required maxlength="200" value="{{.Client.Name}}"></div>
+    <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" maxlength="254" value="{{.Client.Email}}"></div>
+    <div class="field"><label for="phone">Phone</label><input id="phone" name="phone" maxlength="60" value="{{.Client.Phone}}"></div>
+  </div>
+  <div class="field -wide mt"><label for="notes">Internal notes</label><textarea id="notes" name="notes" rows="3" maxlength="10000">{{.Client.Notes}}</textarea></div>
+  <div class="form-actions"><button type="submit" class="-primary">Save changes</button>{{if .Client.ArchivedAt.Valid}}{{else}} <small>Archive needs every project closed first. Delete needs the client archived.</small>{{end}}</div>
+</form></div>
 </details>
 {{end}}
 
-<h2>Contacts</h2>
+<section class="block"><h2>Contacts <small>The people who log in for {{.Client.Name}}</small></h2>
 {{if .Contacts}}
-<table>
+<div class="table-wrap"><table>
 <thead><tr><th>Name</th><th>Email</th><th>Title</th><th>Portal access</th><th></th></tr></thead>
-<tbody>{{range .Contacts}}<tr><td>{{.Name}}</td><td>{{.Email}}</td><td>{{.Title}}</td><td>{{if .UserID.Valid}}active{{else}}not invited yet{{end}}</td>
-<td>{{if not .UserID.Valid}}<form method="post" action="/clients/{{$.Data.Client.ID}}/contacts/{{.ID}}/invite" style="display:inline"><button type="submit">Send portal invite</button></form>{{end}}
-<form method="post" action="/clients/{{$.Data.Client.ID}}/contacts/{{.ID}}/remove" style="display:inline"><button type="submit">Remove</button></form></td></tr>{{end}}</tbody>
-</table>
-{{else}}<p>No contacts yet.</p>{{end}}
-<details>
+<tbody>{{range .Contacts}}<tr><td>{{.Name}}</td><td>{{.Email}}</td><td>{{.Title}}</td><td>{{if .UserID.Valid}}<span class="state -active">active</span>{{else}}<span class="state">not invited yet</span>{{end}}</td>
+<td class="act"><div class="row">{{if not .UserID.Valid}}<form method="post" action="/clients/{{$.Data.Client.ID}}/contacts/{{.ID}}/invite"><button type="submit" class="-primary -sm">Send portal invite</button></form>{{end}}
+<form method="post" action="/clients/{{$.Data.Client.ID}}/contacts/{{.ID}}/remove" data-confirm="Remove {{.Name}}? They lose portal access at once. Their comments and decisions stay."><button type="submit" class="-danger -sm">Remove</button></form></div></td></tr>{{end}}</tbody>
+</table></div>
+{{else}}<div class="empty"><p>No contacts yet. Add the person who will review and approve work.</p></div>{{end}}
+<details class="add" {{if not .Contacts}}open{{end}}>
 <summary>Add contact</summary>
-<form method="post" action="/clients/{{.Client.ID}}/contacts">
-  <p><label for="cname">Name</label><br><input id="cname" name="name" required maxlength="200"></p>
-  <p><label for="cemail">Email</label><br><input id="cemail" name="email" type="email" required maxlength="254"></p>
-  <p><label for="ctitle">Title</label><br><input id="ctitle" name="title" maxlength="200"></p>
-  <button type="submit">Add contact</button>
-</form>
+<div class="in"><form method="post" action="/clients/{{.Client.ID}}/contacts">
+  <div class="fields">
+    <div class="field"><label for="cname">Name</label><input id="cname" name="name" required maxlength="200"></div>
+    <div class="field"><label for="cemail">Email</label><input id="cemail" name="email" type="email" required maxlength="254"></div>
+    <div class="field"><label for="ctitle">Title</label><input id="ctitle" name="title" maxlength="200" placeholder="Marketing lead"></div>
+  </div>
+  <div class="form-actions"><button type="submit" class="-primary">Add contact</button> <small>Then send the portal invite from the list.</small></div>
+</form></div>
 </details>
+</section>
 
-<h2>Projects</h2>
+<section class="block"><h2>Projects</h2>
 {{if .Projects}}
-<table>
+<div class="table-wrap"><table>
 <thead><tr><th>Project</th><th>Status</th><th>Updated</th></tr></thead>
-<tbody>{{range .Projects}}<tr><td><a href="/projects/{{.ID}}">{{.Name}}</a></td><td>{{.Status}}</td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
-</table>
-{{else}}<p>No projects for this client. <a href="/projects">Create one</a>.</p>{{end}}
+<tbody>{{range .Projects}}<tr><td><a href="/projects/{{.ID}}">{{.Name}}</a></td><td><span class="state -{{.Status}}">{{.Status}}</span></td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
+</table></div>
+{{else}}<div class="empty"><p>No projects for this client. <a href="/projects">Create one</a>.</p></div>{{end}}
+</section>
 {{end}}
 {{end}}

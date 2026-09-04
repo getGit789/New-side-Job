@@ -1,12 +1,12 @@
 {{define "content"}}
 {{with .Data}}
 <h1>Join {{.Workspace}}</h1>
-<p>This invitation is for <strong>{{.Email}}</strong>.</p>
-<form method="post" action="/invite/{{.Token}}">
-  <p><label for="name">Your name</label><br><input id="name" name="name" required maxlength="200" value="{{$.Form.name}}"></p>
-  <p><label for="password">Choose a password (12 to 200 characters, not a common password)</label><br><input id="password" name="password" type="password" required minlength="12" maxlength="200" autocomplete="new-password"></p>
-  {{if eq .Role "client"}}<p><label><input type="checkbox" name="terms" value="1" required> I understand that {{.Workspace}} runs this portal, that my comments, approvals and sign-offs are recorded with my name and the time, and that sign-off is a record of completion, not a legal electronic signature.</label></p>{{end}}
-  <button type="submit">Create my account</button>
+<p class="muted">This invitation is for <strong>{{.Email}}</strong>.</p>
+<form method="post" action="/invite/{{.Token}}" class="stack">
+  <div class="field"><label for="name">Your name</label><input id="name" name="name" required maxlength="200" value="{{$.Form.name}}"></div>
+  <div class="field"><label for="password">Choose a password <span class="hint">12 to 200 characters, not a common password</span></label><input id="password" name="password" type="password" required minlength="12" maxlength="200" autocomplete="new-password"></div>
+  {{if eq .Role "client"}}<div class="field -wide"><label class="check"><input type="checkbox" name="terms" value="1" required> <span>I understand that {{.Workspace}} runs this portal, that my comments, approvals and sign-offs are recorded with my name and the time, and that sign-off is a record of completion, not a legal electronic signature.</span></label></div>{{end}}
+  <div class="form-actions"><button type="submit" class="-primary">Create my account</button></div>
 </form>
 {{end}}
 {{end}}

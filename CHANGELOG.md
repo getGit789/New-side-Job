@@ -12,5 +12,7 @@ import and export; project hand-over export; password reset; backup and restore;
 and demo mode with hourly reset; workspace settings (name, logo, contact, time zone, date format, currency,
 allowed upload types); search; email change and notification preference per user; comment deletion with
 tombstone; invoice editing; deliverable deletion while unshared; client terms notice; common-password check.
+Interface: one self-hosted stylesheet and typeface (no external requests), staff sidebar and single-column
+client portal, version rail with decision stamps, phone layouts, keyboard focus and reduced-motion support.
 
 Update notes: none (fresh install). New settings: none beyond `.env.example`.

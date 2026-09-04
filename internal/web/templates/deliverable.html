@@ -1,67 +1,71 @@
 {{define "content"}}
 {{with .Data}}
 {{$d := .Deliverable}}{{$p := .Project}}
-<p><a href="/projects/{{$p.ID}}">← {{$p.Name}}</a></p>
-<h1>{{$d.Title}}</h1>
-<p>{{if $d.Required}}Required for sign-off.{{else}}Optional.{{end}} {{if .Latest}}Current state: <strong>{{human .Latest}}</strong>.{{else}}No version yet.{{end}}</p>
+<div class="page"><div>
+<p class="crumbs"><a href="/projects">Projects</a> / <a href="/projects/{{$p.ID}}">{{$p.Name}}</a></p>
+<h1>{{$d.Title}} {{if .Latest}}<span class="state -{{.Latest}}">{{human .Latest}}</span>{{end}}</h1>
+<ul class="meta"><li>{{if $d.Required}}Required for sign-off{{else}}Optional{{end}}</li>{{if .Waiver}}<li>Waived by the owner: {{.Waiver}}</li>{{end}}{{if $p.Closed}}<li>Project closed, read-only</li>{{end}}</ul>
+</div>
+{{if .CanDelete}}<div class="actions"><form method="post" action="/deliverables/{{$d.ID}}/delete" data-confirm="Delete this deliverable and its drafts?"><button type="submit" class="-danger">Delete deliverable</button></form></div>{{end}}
+</div>
 {{if $d.Description}}<p>{{$d.Description}}</p>{{end}}
-{{if .Waiver}}<p><em>Waived by the owner: {{.Waiver}}</em></p>{{end}}
-{{if .CanDelete}}
-<form method="post" action="/deliverables/{{$d.ID}}/delete" onsubmit="return confirm('Delete this deliverable and its drafts?')"><button type="submit">Delete deliverable</button> <small>Possible only while nothing has been shared.</small></form>
-{{end}}
 {{if not $p.Closed}}
-<details>
-<summary>Edit deliverable</summary>
-<form method="post" action="/deliverables/{{$d.ID}}">
-  <p><label for="title">Title</label><br><input id="title" name="title" required maxlength="200" value="{{$d.Title}}"></p>
-  <p><label for="description">Description</label><br><textarea id="description" name="description" rows="2" maxlength="10000">{{$d.Description}}</textarea></p>
-  <p><label><input type="checkbox" name="required" value="1" {{if $d.Required}}checked{{end}}> Required for final sign-off</label></p>
-  <button type="submit">Save</button>
-</form>
-</details>
+<details class="edit"><summary>Edit title, description, required</summary>
+<div class="in card"><form method="post" action="/deliverables/{{$d.ID}}">
+  <div class="field"><label for="title">Title</label><input id="title" name="title" required maxlength="200" value="{{$d.Title}}"></div>
+  <div class="field -wide"><label for="description">Description <span class="hint">Shown to the client above the versions.</span></label><textarea id="description" name="description" rows="2" maxlength="10000">{{$d.Description}}</textarea></div>
+  <div class="field -wide"><label class="check"><input type="checkbox" name="required" value="1" {{if $d.Required}}checked{{end}}> Required for final sign-off</label></div>
+  <div class="form-actions"><button type="submit" class="-primary">Save changes</button></div>
+</form></div></details>
 {{end}}
-
-<h2>Versions</h2>
-{{range .Versions}}
-<section aria-label="Version {{.Number}}">
-<h3>v{{.Number}} — {{human .State}}</h3>
-<p>{{if eq .Kind "file"}}File: <a href="/versions/{{.ID}}/download">{{.FileName.String}}</a> ({{.FileSize.Int64}} bytes){{else}}Link: <a href="{{.URL}}" rel="noopener noreferrer">{{.URL}}</a>{{end}}
-<br>Added {{date .CreatedAt}}{{if .CreatedBy}} by {{.CreatedBy}}{{end}}{{if .SharedAt.Valid}} · Shared {{date .SharedAt.String}}{{end}}</p>
-{{if .Note}}<p>{{.Note}}</p>{{end}}
-{{if .ReopenReason}}<p><em>Reopened: {{.ReopenReason}}</em></p>{{end}}
-{{if .Decisions}}<ul>{{range .Decisions}}<li><strong>{{human .Type}}</strong> by {{.By}} on {{date .CreatedAt}}{{if .Note}}: {{.Note}}{{end}}</li>{{end}}</ul>{{end}}
-{{if .Comments}}<ul>{{range .Comments}}<li>[{{.Visibility}}] {{.Author}} ({{date .CreatedAt}}): {{.Body}}{{if and .CanDelete (not $p.Closed)}} <form method="post" action="/comments/{{.ID}}/delete" style="display:inline"><button type="submit">Delete</button></form>{{end}}</li>{{end}}</ul>{{end}}
-{{if not $p.Closed}}
-<form method="post" action="/versions/{{.ID}}/comment">
-  <label for="c-{{.ID}}">Comment</label> <input id="c-{{.ID}}" name="body" required maxlength="10000">
-  <select name="visibility" aria-label="Visibility"><option value="internal">internal note</option><option value="client">visible to client</option></select>
-  <button type="submit">Post</button>
-</form>
-{{end}}
-{{if not $p.Closed}}
-{{if eq .State "draft"}}
-<form method="post" action="/versions/{{.ID}}/share" style="display:inline"><button type="submit">Share with client</button></form>
-<form method="post" action="/versions/{{.ID}}/delete" style="display:inline"><button type="submit">Delete draft</button></form>
-{{else if eq .State "shared"}}
-<form method="post" action="/versions/{{.ID}}/withdraw" style="display:inline"><button type="submit">Withdraw</button></form>
-{{end}}
-{{end}}
-</section>
-{{else}}<p>No versions yet.</p>{{end}}
 
 {{if .CanAdd}}
-<details open>
+<details class="add" {{if not .Versions}}open{{end}}>
 <summary>{{if .NeedsReason}}Reopen with a new version{{else}}Add version{{end}}</summary>
-<form method="post" action="/deliverables/{{$d.ID}}/versions" enctype="multipart/form-data">
-  <p><label for="file">File</label><br><input id="file" name="file" type="file"></p>
-  <p>or <label for="url">Link</label><br><input id="url" name="url" type="url" maxlength="2048"></p>
-  <p><label for="note">Note for the client</label><br><textarea id="note" name="note" rows="2" maxlength="10000"></textarea></p>
-  {{if .NeedsReason}}<p><label for="reason">Reason for reopening an approved deliverable (required)</label><br><input id="reason" name="reason" required minlength="3" maxlength="1000"></p>{{end}}
-  <button type="submit">Add as draft</button>
-</form>
+<div class="in"><form method="post" action="/deliverables/{{$d.ID}}/versions" enctype="multipart/form-data">
+  <div class="fields">
+    <div class="field"><label for="file">File</label><input id="file" name="file" type="file"></div>
+    <div class="field"><label for="url">Or a link <span class="hint">Design tool, shared drive, staging site</span></label><input id="url" name="url" type="url" maxlength="2048" placeholder="https://"></div>
+  </div>
+  <div class="field -wide mt"><label for="note">Note for the client</label><textarea id="note" name="note" rows="2" maxlength="10000" placeholder="What changed in this version and what you would like feedback on."></textarea></div>
+  {{if .NeedsReason}}<div class="field -wide"><label for="reason">Reason for reopening an approved deliverable <span class="hint">Required. Recorded in the audit log. The approved version stays approved.</span></label><input id="reason" name="reason" required minlength="3" maxlength="1000"></div>{{end}}
+  <div class="form-actions"><button type="submit" class="-primary">Add as draft</button> <small>Drafts are invisible to the client until you share them.</small></div>
+</form></div>
 </details>
 {{else if not $p.Closed}}
-<p>A new version can be added after the client decides on the shared one, or after the draft is shared or deleted.</p>
+<p class="notice">A new version can be added after the client decides on the shared one, or after the draft is shared or deleted.</p>
 {{end}}
+
+<section class="block"><h2>Versions <small>Newest first. Shared versions are never edited or replaced.</small></h2>
+{{if .Versions}}
+<ol class="versions">
+{{range .Versions}}
+<li class="version -{{.State}}" aria-label="Version {{.Number}}">
+<div class="n">v{{.Number}}</div>
+<div class="body">
+<div class="head"><span class="file">{{if eq .Kind "file"}}<a href="/versions/{{.ID}}/download">{{.FileName.String}}</a> <small>{{.FileSize.Int64}} bytes</small>{{else}}<a href="{{.URL}}" rel="noopener noreferrer">{{.URL}}</a>{{end}}</span><span class="state -{{.State}}">{{human .State}}</span></div>
+<ul class="meta"><li>Added {{date .CreatedAt}}{{if .CreatedBy}} by {{.CreatedBy}}{{end}}</li>{{if .SharedAt.Valid}}<li>Shared {{date .SharedAt.String}}</li>{{end}}</ul>
+{{if .Note}}<p class="note">{{.Note}}</p>{{end}}
+{{if .ReopenReason}}<p class="note"><em>Reopened: {{.ReopenReason}}</em></p>{{end}}
+{{if .Decisions}}<ul class="decisions">{{range .Decisions}}<li><span class="stamp -{{.Type}}">{{human .Type}}</span><span class="who">{{.By}}, {{date .CreatedAt}}</span>{{if .Note}}<span class="text">{{.Note}}</span>{{end}}</li>{{end}}</ul>{{end}}
+{{if .Comments}}<ul class="comments">{{range .Comments}}<li class="comment"><span class="who"><strong>{{.Author}}</strong> {{date .CreatedAt}}<span class="tag{{if eq .Visibility "client"}} -client{{end}}">{{if eq .Visibility "client"}}client sees this{{else}}internal{{end}}</span></span><span class="text{{if eq .Body "(deleted)"}} -gone{{end}}">{{.Body}}</span>{{if and .CanDelete (not $p.Closed)}}<form method="post" action="/comments/{{.ID}}/delete"><button type="submit" class="-quiet -sm">Delete</button></form>{{end}}</li>{{end}}</ul>{{end}}
+{{if not $p.Closed}}
+<form method="post" action="/versions/{{.ID}}/comment" class="inline reply">
+  <div class="field"><label for="c-{{.ID}}">Comment</label><input id="c-{{.ID}}" name="body" required maxlength="10000"></div>
+  <div class="field -fixed"><label for="v-{{.ID}}">Who sees it</label><select id="v-{{.ID}}" name="visibility"><option value="internal">Team only</option><option value="client">Client too</option></select></div>
+  <button type="submit">Post</button>
+</form>
+<div class="actions row">
+{{if eq .State "draft"}}<form method="post" action="/versions/{{.ID}}/share" data-confirm="Share version {{.Number}} with the client? It becomes permanent and the client is notified."><button type="submit" class="-primary">Share with client</button></form>
+<form method="post" action="/versions/{{.ID}}/delete" data-confirm="Delete this draft?"><button type="submit" class="-quiet">Delete draft</button></form>
+{{else if eq .State "shared"}}<form method="post" action="/versions/{{.ID}}/withdraw" data-confirm="Withdraw version {{.Number}}? The client can no longer decide on it."><button type="submit">Withdraw</button></form>{{end}}
+</div>
+{{end}}
+</div>
+</li>
+{{end}}
+</ol>
+{{else}}<div class="empty"><p>No versions yet. Upload a file or paste a link above, then share it with the client.</p></div>{{end}}
+</section>
 {{end}}
 {{end}}

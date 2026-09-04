@@ -3,22 +3,76 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{if .Title}}{{.Title}} · {{end}}BriefRelay</title>
+<title>{{if .Title}}{{.Title}} – {{end}}{{.Workspace.Name}}</title>
+<link rel="stylesheet" href="/static/app.css?v={{.Version}}">
 </head>
 <body>
-<header>
-<nav aria-label="Main">
-<a href="/">{{if .Workspace.HasLogo}}<img src="/logo" alt="" height="24"> {{end}}{{.Workspace.Name}}</a>
-{{if .User}}{{if .Role.IsStaff}} · <a href="/clients">Clients</a> · <a href="/projects">Projects</a> · <a href="/search">Search</a>{{end}}{{if .IsOwner}} · <a href="/team">Team</a> · <a href="/activity">Activity</a> · <a href="/settings">Settings</a>{{end}}
- · <a href="/notifications">Notifications{{if .Unread}} ({{.Unread}}){{end}}</a> · <a href="/account">{{.User.Name}}</a> <form method="post" action="/logout" style="display:inline"><button type="submit">Log out</button></form>{{end}}
-</nav>
-</header>
-<main>
-{{if .Demo}}<p><strong>Demo.</strong> Sample data only. Everything resets every hour. Email is not sent.</p>{{end}}
-{{if .Error}}<p role="alert">{{.Error}}</p>{{end}}
-{{if .Message}}<p role="status">{{.Message}}</p>{{end}}
+<svg width="0" height="0" class="sprite" aria-hidden="true" focusable="false">
+<symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+<symbol id="i-clients" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
+<symbol id="i-projects" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+<symbol id="i-team" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+<symbol id="i-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h13"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.5"/><circle cx="9" cy="17" r="2.5"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/></symbol>
+</svg>
+{{if .User}}
+{{if .Role.IsStaff}}
+<div class="shell">
+<aside class="rail">
+  <a class="brand" href="/">{{if .Workspace.HasLogo}}<img src="/logo" alt="">{{end}}<span>{{.Workspace.Name}}</span></a>
+  <nav class="nav" aria-label="Main">
+    <a href="/"><svg><use href="#i-home"/></svg><span class="t">Overview</span></a>
+    <a href="/clients"><svg><use href="#i-clients"/></svg><span class="t">Clients</span></a>
+    <a href="/projects"><svg><use href="#i-projects"/></svg><span class="t">Projects</span></a>
+    <a href="/search"><svg><use href="#i-search"/></svg><span class="t">Search</span></a>
+    {{if .IsOwner}}<a href="/team"><svg><use href="#i-team"/></svg><span class="t">Team</span></a>
+    <a href="/activity"><svg><use href="#i-activity"/></svg><span class="t">Activity</span></a>
+    <a href="/settings"><svg><use href="#i-settings"/></svg><span class="t">Settings</span></a>{{end}}
+    <a href="/notifications"><svg><use href="#i-bell"/></svg><span class="t">Notifications</span>{{if .Unread}}<span class="count">{{.Unread}}</span>{{end}}</a>
+  </nav>
+  <div class="me">
+    <a href="/account">{{.User.Name}}<small>{{human .User.Role}}</small></a>
+    <form method="post" action="/logout"><button type="submit" class="-quiet -sm">Log out</button></form>
+  </div>
+</aside>
+<main class="content">
+{{template "flash" .}}
 {{template "content" .}}
-{{if .Workspace.Contact}}<footer><p><small>{{.Workspace.Contact}}</small></p></footer>{{end}}
 </main>
+</div>
+{{else}}
+<div class="shell -single">
+<header class="topbar"><div class="in">
+  <a class="brand" href="/">{{if .Workspace.HasLogo}}<img src="/logo" alt="">{{end}}<span>{{.Workspace.Name}}</span></a>
+  <nav class="nav" aria-label="Main">
+    <a href="/"><svg><use href="#i-projects"/></svg><span class="t">Your projects</span></a>
+    <a href="/notifications"><svg><use href="#i-bell"/></svg><span class="t">Notifications</span>{{if .Unread}}<span class="count">{{.Unread}}</span>{{end}}</a>
+    <a href="/account"><svg><use href="#i-team"/></svg><span class="t">{{.User.Name}}</span></a>
+    <form method="post" action="/logout" class="line"><button type="submit" class="-quiet -sm">Log out</button></form>
+  </nav>
+</div></header>
+<main class="content">
+{{template "flash" .}}
+{{template "content" .}}
+{{if .Workspace.Contact}}<footer class="contact">{{.Workspace.Contact}}</footer>{{end}}
+</main>
+</div>
+{{end}}
+{{else}}
+<main class="center">
+<div class="card">
+<a class="brand" href="/">{{if .Workspace.HasLogo}}<img src="/logo" alt="">{{end}}<span>{{.Workspace.Name}}</span></a>
+{{template "flash" .}}
+{{template "content" .}}
+{{if .Workspace.Contact}}<footer class="contact">{{.Workspace.Contact}}</footer>{{end}}
+</div>
+</main>
+{{end}}
+<script src="/static/app.js?v={{.Version}}"></script>
 </body>
 </html>{{end}}
+{{define "flash"}}{{if .Demo}}<p class="notice -demo"><strong>Demo.</strong> Sample data only. Everything resets every hour. No email is sent.</p>{{end}}
+{{if .Error}}<p class="notice -error" role="alert">{{.Error}}</p>{{end}}
+{{if .Message}}<p class="notice -ok" role="status">{{.Message}}</p>{{end}}{{end}}

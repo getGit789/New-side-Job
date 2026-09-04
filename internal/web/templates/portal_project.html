@@ -1,51 +1,63 @@
 {{define "content"}}
 {{with .Data}}
 {{$p := .Project}}
-<h1>{{$p.Name}}</h1>
-<p>Status: {{$p.Status}}{{if $p.Closed}} · closed {{date $p.ClosedAt.String}}{{end}}</p>
+<div class="page"><div>
+<p class="crumbs"><a href="/">Your projects</a></p>
+<h1>{{$p.Name}} <span class="state -{{$p.Status}}">{{$p.Status}}</span></h1>
+{{if $p.Closed}}<p class="sub">Closed {{date $p.ClosedAt.String}}. Everything stays readable; nothing can change.</p>{{end}}
+</div></div>
 {{if $p.Summary}}<p>{{$p.Summary}}</p>{{end}}
 
-<h2>Brief</h2>
-<p>{{if .Intake}}{{if eq .Intake.Status "submitted"}}Submitted {{date .Intake.SubmittedAt}}.{{else}}Draft saved.{{end}}{{else}}Not started.{{end}} <a href="/portal/projects/{{$p.ID}}/intake">Open the brief</a></p>
+<section class="block"><h2>Brief</h2>
+<div class="card row -between">
+<span>{{if .Intake}}{{if eq .Intake.Status "submitted"}}Submitted {{date .Intake.SubmittedAt}}.{{else}}Draft saved, not submitted yet.{{end}}{{else}}Not started. Tell {{$.Workspace.Name}} what you need.{{end}}</span>
+<a class="btn{{if not .Intake}} -primary{{end}}" href="/portal/projects/{{$p.ID}}/intake">{{if .Intake}}Open the brief{{else}}Start the brief{{end}}</a>
+</div></section>
 
-<h2>Progress</h2>
+<section class="block"><h2>Progress</h2>
 {{if .Milestones}}
-<table>
+<div class="table-wrap"><table>
 <thead><tr><th>Milestone</th><th>Target</th><th>Status</th><th>Latest update</th></tr></thead>
-<tbody>{{range .Milestones}}<tr><td>{{.Title}}</td><td>{{.TargetDate}}</td><td>{{human .Status}}</td><td>{{.LatestUpdate}}</td></tr>{{end}}</tbody>
-</table>
-{{else}}<p>No milestones shared yet.</p>{{end}}
+<tbody>{{range .Milestones}}<tr><td>{{.Title}}</td><td>{{.TargetDate}}</td><td><span class="state -{{.Status}}">{{human .Status}}</span></td><td>{{.LatestUpdate}}</td></tr>{{end}}</tbody>
+</table></div>
+{{else}}<div class="empty"><p>No milestones shared yet.</p></div>{{end}}
+</section>
 
-<h2>Deliverables</h2>
+<section class="block"><h2>For your review</h2>
 {{if .Deliverables}}
-<table>
-<thead><tr><th>Deliverable</th><th>Version</th><th>State</th></tr></thead>
-<tbody>{{range .Deliverables}}<tr><td><a href="/portal/deliverables/{{.ID}}">{{.Title}}</a></td><td>v{{.LatestNumber}}</td><td>{{human .LatestState}}</td></tr>{{end}}</tbody>
-</table>
-{{else}}<p>Nothing shared for review yet.</p>{{end}}
+<div class="table-wrap"><table>
+<thead><tr><th>Deliverable</th><th>Version</th><th>State</th><th></th></tr></thead>
+<tbody>{{range .Deliverables}}<tr><td><a href="/portal/deliverables/{{.ID}}">{{.Title}}</a></td><td>v{{.LatestNumber}}</td><td><span class="state -{{.LatestState}}">{{human .LatestState}}</span></td><td class="act">{{if eq .LatestState "shared"}}<a class="btn -primary -sm" href="/portal/deliverables/{{.ID}}">Review</a>{{end}}</td></tr>{{end}}</tbody>
+</table></div>
+{{else}}<div class="empty"><p>Nothing shared for review yet. You are notified when a version is ready.</p></div>{{end}}
+</section>
 
-<h2>Invoices</h2>
+<section class="block"><h2>Invoices</h2>
 {{if .Invoices}}
-<table>
-<thead><tr><th>Number</th><th>Amount</th><th>Due</th><th>Status</th><th>Document</th><th>Pay</th></tr></thead>
-<tbody>{{range .Invoices}}<tr><td>{{.Number}}</td><td>{{money .AmountCents .Currency}}</td><td>{{.DueDate}}</td><td>{{.Status}}</td>
-<td>{{if .FileID.Valid}}<a href="/portal/invoices/{{.ID}}/document">Download</a>{{else}}—{{end}}</td>
-<td>{{if .PaymentURL}}<a href="{{.PaymentURL}}" rel="noopener noreferrer">Open payment link</a>{{else}}—{{end}}</td></tr>{{end}}</tbody>
-</table>
-{{else}}<p>No invoices.</p>{{end}}
+<div class="table-wrap"><table>
+<thead><tr><th>Number</th><th>Amount</th><th>Due</th><th>Status</th><th>Document</th><th></th></tr></thead>
+<tbody>{{range .Invoices}}<tr><td>{{.Number}}</td><td>{{money .AmountCents .Currency}}</td><td>{{.DueDate}}</td><td><span class="state -{{.Status}}">{{.Status}}</span></td>
+<td>{{if .FileID.Valid}}<a href="/portal/invoices/{{.ID}}/document">Download</a>{{else}}<span class="no">none</span>{{end}}</td>
+<td class="act">{{if and .PaymentURL (eq .Status "sent")}}<a class="btn -primary -sm" href="{{.PaymentURL}}" rel="noopener noreferrer">Pay</a>{{else if .PaymentURL}}<a href="{{.PaymentURL}}" rel="noopener noreferrer">Payment link</a>{{end}}</td></tr>{{end}}</tbody>
+</table></div>
+{{else}}<div class="empty"><p>No invoices.</p></div>{{end}}
+</section>
 
-<h2>Final handoff</h2>
+<section class="block"><h2>Final hand-over</h2>
+<div class="card">
 {{with .Handoff}}
 {{if .Rows}}
-<ul>{{range .Rows}}<li>{{.Title}}: {{if .Satisfied}}{{if .Waiver}}waived{{else}}approved (v{{.LatestNumber}}){{end}}{{else}}{{if .LatestNumber}}v{{.LatestNumber}} {{human .LatestState}}{{else}}not yet shared{{end}}{{end}}</li>{{end}}</ul>
+<ul class="checklist">{{range .Rows}}<li class="{{if .Satisfied}}{{if .Waiver}}-waived{{else}}-done{{end}}{{end}}"><span class="mark">{{if .Satisfied}}✓{{end}}</span>
+<span>{{.Title}}<br><small>{{if .Satisfied}}{{if .Waiver}}Waived by {{$.Workspace.Name}}{{else}}Approved, v{{.LatestNumber}}{{end}}{{else}}{{if .LatestNumber}}v{{.LatestNumber}} {{human .LatestState}}{{else}}Not yet shared{{end}}{{end}}</small></span><span></span></li>{{end}}</ul>
 {{end}}
-{{if .Signoffs}}<p>Signed off by {{(index .Signoffs 0).By}} on {{date (index .Signoffs 0).CreatedAt}}.</p>
+{{if .Signoffs}}<div class="signed"><strong>Signed off by {{(index .Signoffs 0).By}}</strong> on {{date (index .Signoffs 0).CreatedAt}}.</div>
 {{else if and .Ready (not $p.Closed)}}
-<form method="post" action="/portal/projects/{{$p.ID}}/signoff">
-  <p>Every required deliverable is approved. Signing off confirms the project is complete and closes it.</p>
-  <button type="submit">Sign off and complete the project</button>
+<form method="post" action="/portal/projects/{{$p.ID}}/signoff" class="signoff" data-confirm="Sign off and complete the project? This records your name and the time, and closes the project.">
+  <p><strong>Every required deliverable is approved.</strong> Signing off confirms the project is complete and closes it. It records your name, the time, and the exact versions. It is a record of completion, not a legal electronic signature.</p>
+  <div class="form-actions"><button type="submit" class="-primary">Sign off and complete the project</button></div>
 </form>
-{{else}}<p>Sign-off becomes available when every required deliverable is approved.</p>{{end}}
+{{else}}<p class="muted mt">Sign-off becomes available when every required deliverable is approved.</p>{{end}}
 {{end}}
+</div></section>
 {{end}}
 {{end}}

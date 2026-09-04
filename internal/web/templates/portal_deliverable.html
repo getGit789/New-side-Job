@@ -1,28 +1,35 @@
 {{define "content"}}
 {{with .Data}}
 {{$d := .Deliverable}}{{$p := .Project}}
-<p><a href="/portal/projects/{{$p.ID}}">← {{$p.Name}}</a></p>
+<div class="page"><div>
+<p class="crumbs"><a href="/">Your projects</a> / <a href="/portal/projects/{{$p.ID}}">{{$p.Name}}</a></p>
 <h1>{{$d.Title}}</h1>
-{{if $d.Description}}<p>{{$d.Description}}</p>{{end}}
+{{if $d.Description}}<p class="sub">{{$d.Description}}</p>{{end}}
+</div></div>
+<ol class="versions">
 {{range .Versions}}
-<section aria-label="Version {{.Number}}">
-<h2>v{{.Number}} — {{human .State}}</h2>
-<p>{{if eq .Kind "file"}}<a href="/portal/versions/{{.ID}}/download">Download {{.FileName.String}}</a> ({{.FileSize.Int64}} bytes){{else}}<a href="{{.URL}}" rel="noopener noreferrer">{{.URL}}</a>{{end}}{{if .SharedAt.Valid}} · shared {{date .SharedAt.String}}{{end}}</p>
-{{if .Note}}<p>{{.Note}}</p>{{end}}
-{{if .Decisions}}<ul>{{range .Decisions}}<li><strong>{{human .Type}}</strong> by {{.By}} on {{date .CreatedAt}}{{if .Note}}: {{.Note}}{{end}}</li>{{end}}</ul>{{end}}
-{{if .Comments}}<ul>{{range .Comments}}<li>{{.Author}} ({{date .CreatedAt}}): {{.Body}}{{if and .CanDelete (not $p.Closed)}} <form method="post" action="/portal/comments/{{.ID}}/delete" style="display:inline"><button type="submit">Delete</button></form>{{end}}</li>{{end}}</ul>{{end}}
+<li class="version -{{.State}}" aria-label="Version {{.Number}}">
+<div class="n">v{{.Number}}</div>
+<div class="body">
+<div class="head"><span class="file">{{if eq .Kind "file"}}<a href="/portal/versions/{{.ID}}/download">Download {{.FileName.String}}</a> <small>{{.FileSize.Int64}} bytes</small>{{else}}<a href="{{.URL}}" rel="noopener noreferrer">{{.URL}}</a>{{end}}</span><span class="state -{{.State}}">{{human .State}}</span></div>
+{{if .SharedAt.Valid}}<ul class="meta"><li>Shared {{date .SharedAt.String}}</li></ul>{{end}}
+{{if .Note}}<p class="note">{{.Note}}</p>{{end}}
+{{if .Decisions}}<ul class="decisions">{{range .Decisions}}<li><span class="stamp -{{.Type}}">{{human .Type}}</span><span class="who">{{.By}}, {{date .CreatedAt}}</span>{{if .Note}}<span class="text">{{.Note}}</span>{{end}}</li>{{end}}</ul>{{end}}
+{{if .Comments}}<ul class="comments">{{range .Comments}}<li class="comment"><span class="who"><strong>{{.Author}}</strong> {{date .CreatedAt}}</span><span class="text{{if eq .Body "(deleted)"}} -gone{{end}}">{{.Body}}</span>{{if and .CanDelete (not $p.Closed)}}<form method="post" action="/portal/comments/{{.ID}}/delete"><button type="submit" class="-quiet -sm">Delete</button></form>{{end}}</li>{{end}}</ul>{{end}}
 {{if and (eq .State "shared") (not $p.Closed)}}
-<form method="post" action="/portal/versions/{{.ID}}/comment">
-  <label for="c-{{.ID}}">Comment</label> <input id="c-{{.ID}}" name="body" required maxlength="10000">
+<form method="post" action="/portal/versions/{{.ID}}/comment" class="inline reply">
+  <div class="field"><label for="c-{{.ID}}">Comment</label><input id="c-{{.ID}}" name="body" required maxlength="10000" placeholder="A question or a remark, without deciding yet"></div>
   <button type="submit">Post comment</button>
 </form>
-<form method="post" action="/portal/versions/{{.ID}}/decide">
-  <p><label for="n-{{.ID}}">Note (required when requesting a revision)</label><br><input id="n-{{.ID}}" name="note" maxlength="10000"></p>
-  <button type="submit" name="decision" value="approve">Approve v{{.Number}}</button>
-  <button type="submit" name="decision" value="revision">Request revision</button>
+<form method="post" action="/portal/versions/{{.ID}}/decide" class="actions">
+  <div class="field -wide"><label for="n-{{.ID}}">Your decision on version {{.Number}} <span class="hint">A note is required when you request a revision. Say what should change.</span></label><input id="n-{{.ID}}" name="note" maxlength="10000"></div>
+  <div class="row"><button type="submit" name="decision" value="approve" class="-primary">Approve v{{.Number}}</button>
+  <button type="submit" name="decision" value="revision">Request revision</button></div>
 </form>
 {{end}}
-</section>
+</div>
+</li>
 {{end}}
+</ol>
 {{end}}
 {{end}}

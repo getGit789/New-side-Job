@@ -1,23 +1,30 @@
 {{define "content"}}
-<h1>Account</h1>
-<p>{{.User.Name}} · {{.User.Email}} · {{human .User.Role}}</p>
-<h2>Email notifications</h2>
+<div class="page"><div><h1>Account</h1><ul class="meta"><li><strong>{{.User.Name}}</strong></li><li>{{.User.Email}}</li><li>{{human .User.Role}}</li></ul></div></div>
+<section class="block"><h2>Email notifications</h2>
+<div class="card">
 <form method="post" action="/account/notifications">
-  <p><label><input type="checkbox" name="email_notifications" value="1" {{if .Data.EmailNotifications}}checked{{end}}> Send me an email when something needs my attention</label> <small>In-app notifications are always on.</small></p>
-  <button type="submit">Save</button>
+  <div class="field -wide"><label class="check"><input type="checkbox" name="email_notifications" value="1" {{if .Data.EmailNotifications}}checked{{end}}> <span>Send me an email when something needs my attention <span class="hint">Notifications inside the portal are always on.</span></span></label></div>
+  <div class="form-actions"><button type="submit">Save</button></div>
 </form>
-<h2>Change password</h2>
-{{if .Demo}}<p>Passwords cannot be changed in the demo.</p>{{else}}
+</div></section>
+{{if .Demo}}
+<section class="block"><h2>Password and email</h2><div class="card"><p>Passwords and emails cannot be changed in the demo.</p></div></section>
+{{else}}
+<section class="block"><h2>Change password</h2>
+<div class="card">
 <form method="post" action="/account/password">
-  <p><label for="current">Current password</label><br><input id="current" name="current" type="password" required autocomplete="current-password"></p>
-  <p><label for="password">New password (12 to 200 characters, not a common password)</label><br><input id="password" name="password" type="password" required minlength="12" maxlength="200" autocomplete="new-password"></p>
-  <button type="submit">Change password</button> <small>Other devices are logged out.</small>
+  <div class="field"><label for="current">Current password</label><input id="current" name="current" type="password" required autocomplete="current-password"></div>
+  <div class="field"><label for="password">New password <span class="hint">12 to 200 characters, not a common password</span></label><input id="password" name="password" type="password" required minlength="12" maxlength="200" autocomplete="new-password"></div>
+  <div class="form-actions"><button type="submit">Change password</button> <small>Other devices are logged out.</small></div>
 </form>
-<h2>Change email</h2>
+</div></section>
+<section class="block"><h2>Change email</h2>
+<div class="card">
 <form method="post" action="/account/email">
-  <p><label for="ecurrent">Current password</label><br><input id="ecurrent" name="current" type="password" required autocomplete="current-password"></p>
-  <p><label for="email">New email</label><br><input id="email" name="email" type="email" required maxlength="254" value="{{.User.Email}}"></p>
-  <button type="submit">Change email</button>
+  <div class="field"><label for="ecurrent">Current password</label><input id="ecurrent" name="current" type="password" required autocomplete="current-password"></div>
+  <div class="field"><label for="email">New email</label><input id="email" name="email" type="email" required maxlength="254" value="{{.User.Email}}"></div>
+  <div class="form-actions"><button type="submit">Change email</button></div>
 </form>
+</div></section>
 {{end}}
 {{end}}

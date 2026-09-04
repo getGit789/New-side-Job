@@ -1,7 +1,9 @@
 {{define "content"}}
-<h1>Notifications</h1>
+<div class="page"><div><h1>Notifications</h1></div>
+{{if .Data}}<div class="actions"><form method="post" action="/notifications/read"><button type="submit">Mark all as read</button></form></div>{{end}}</div>
 {{if .Data}}
-<form method="post" action="/notifications/read"><button type="submit">Mark all as read</button></form>
-<ul>{{range .Data}}<li>{{if not .Read}}<strong>{{end}}<a href="{{.URL}}">{{.Title}}</a>{{if not .Read}}</strong>{{end}} <small>{{date .CreatedAt}}</small></li>{{end}}</ul>
-{{else}}<p>Nothing yet.</p>{{end}}
+<div class="card">
+<ul class="plain stack">{{range .Data}}<li><a href="{{.URL}}">{{if not .Read}}<strong>{{.Title}}</strong>{{else}}{{.Title}}{{end}}</a><br><small>{{date .CreatedAt}}</small></li>{{end}}</ul>
+</div>
+{{else}}<div class="empty"><p>Nothing yet. You are told here when something needs your attention.</p></div>{{end}}
 {{end}}

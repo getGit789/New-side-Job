@@ -1,167 +1,189 @@
 {{define "content"}}
 {{with .Data}}
 {{$p := .Project}}
-<h1>{{$p.Name}} <small>({{$p.Status}})</small></h1>
-<p>Client: <a href="/clients/{{$p.ClientOrgID}}">{{$p.ClientName}}</a> · Created {{date $p.CreatedAt}}{{if $p.Closed}} · Closed {{date $p.ClosedAt.String}}{{end}}</p>
-{{if $p.Summary}}<p>{{$p.Summary}}</p>{{end}}
-<h2>Brief (intake)</h2>
-{{if .Intake}}
-<p>Version {{.Intake.Version}} · {{if eq .Intake.Status "submitted"}}submitted {{date .Intake.SubmittedAt}} by {{.Intake.SubmittedBy}}{{else}}draft, not submitted yet{{end}}</p>
-{{if eq .Intake.Status "submitted"}}<dl>{{range .IntakeFields}}{{$v := index $.Data.Intake.Answers .Key}}{{if $v}}<dt>{{.Label}}</dt><dd>{{$v}}</dd>{{end}}{{end}}</dl>{{end}}
-{{else}}<p>The client has not started the brief.</p>{{end}}
-{{if .IntakeComments}}<ul>{{range .IntakeComments}}<li>[{{.Visibility}}] {{.Author}} ({{date .CreatedAt}}): {{.Body}}{{if and .CanDelete (not $p.Closed)}} <form method="post" action="/comments/{{.ID}}/delete" style="display:inline"><button type="submit">Delete</button></form>{{end}}</li>{{end}}</ul>{{end}}
-{{if not $p.Closed}}
-<form method="post" action="/projects/{{$p.ID}}/intake/comment">
-  <label for="clarify">Ask the client a question about the brief</label> <input id="clarify" name="body" required maxlength="10000">
-  <button type="submit">Send</button>
-</form>
-{{end}}
-
+<div class="page"><div>
+<p class="crumbs"><a href="/projects">Projects</a> / <a href="/clients/{{$p.ClientOrgID}}">{{$p.ClientName}}</a></p>
+<h1>{{$p.Name}} <span class="state -{{$p.Status}}">{{$p.Status}}</span></h1>
+<ul class="meta"><li>Created {{date $p.CreatedAt}}</li>{{if $p.Closed}}<li>Closed {{date $p.ClosedAt.String}}</li>{{end}}</ul>
+</div>
+<div class="actions">
+{{if $.IsOwner}}<a class="btn" href="/projects/{{$p.ID}}/export.zip">Export hand-over record</a>{{end}}
 {{if $p.Closed}}
-<p>This project is closed and read-only.</p>
-{{if $.IsOwner}}<p><a href="/projects/{{$p.ID}}/export.zip">Export hand-over record (zip)</a></p>
-<form method="post" action="/projects/{{$p.ID}}/delete" onsubmit="return confirm('Delete this project and its files permanently?')"><button type="submit">Delete permanently</button></form>{{end}}
-{{if $.IsOwner}}<form method="post" action="/projects/{{$p.ID}}/reopen">
-  <label for="reason">Reason to reopen</label> <input id="reason" name="reason" required minlength="3" maxlength="1000">
-  <button type="submit">Reopen project</button></form>{{end}}
+{{if $.IsOwner}}<form method="post" action="/projects/{{$p.ID}}/delete" data-confirm="Delete this project and its files permanently?"><button type="submit" class="-danger">Delete permanently</button></form>{{end}}
 {{else}}
-<details>
-<summary>Edit project</summary>
-<form method="post" action="/projects/{{$p.ID}}">
-  <p><label for="name">Project name</label><br><input id="name" name="name" required maxlength="200" value="{{$p.Name}}"></p>
-  <p><label for="summary">Summary</label><br><textarea id="summary" name="summary" rows="3" maxlength="10000">{{$p.Summary}}</textarea></p>
-  <button type="submit">Save</button>
-</form>
-{{if $.IsOwner}}<p><a href="/projects/{{$p.ID}}/export.zip">Export hand-over record (zip)</a></p>{{end}}
-<form method="post" action="/projects/{{$p.ID}}/close"><button type="submit">Close project</button> <small>Makes it read-only. The owner can reopen it.</small></form>
-</details>
+<form method="post" action="/projects/{{$p.ID}}/close" data-confirm="Close this project? It becomes read-only for everyone. The owner can reopen it."><button type="submit">Close project</button></form>
+{{end}}
+</div></div>
+
+{{if $p.Summary}}<p>{{$p.Summary}}</p>{{end}}
+{{if $p.Closed}}
+<div class="card -tint"><p><strong>This project is closed and read-only.</strong> Downloads still work; nothing can be added or changed.</p>
+{{if $.IsOwner}}<form method="post" action="/projects/{{$p.ID}}/reopen" class="inline mt">
+  <div class="field"><label for="reason">Reason to reopen</label><input id="reason" name="reason" required minlength="3" maxlength="1000"></div>
+  <button type="submit">Reopen project</button>
+</form>{{end}}</div>
+{{else}}
+<details class="edit"><summary>Edit name and summary</summary>
+<div class="in card"><form method="post" action="/projects/{{$p.ID}}">
+  <div class="field"><label for="name">Project name</label><input id="name" name="name" required maxlength="200" value="{{$p.Name}}"></div>
+  <div class="field -wide"><label for="summary">Summary</label><textarea id="summary" name="summary" rows="3" maxlength="10000">{{$p.Summary}}</textarea></div>
+  <div class="form-actions"><button type="submit" class="-primary">Save changes</button></div>
+</form></div></details>
 {{end}}
 
-<h2>Team on this project</h2>
-<ul>{{range .Members}}<li>{{.Name}} ({{.Email}}){{if and $.IsOwner (not $p.Closed)}} <form method="post" action="/projects/{{$p.ID}}/members/{{.ID}}/remove" style="display:inline"><button type="submit">Remove</button></form>{{end}}</li>{{else}}<li>Nobody assigned.</li>{{end}}</ul>
+<section class="block"><h2>Brief <small>Answered by the client</small></h2>
+<div class="card">
+{{if .Intake}}
+<p class="muted">Version {{.Intake.Version}}, {{if eq .Intake.Status "submitted"}}submitted {{date .Intake.SubmittedAt}} by {{.Intake.SubmittedBy}}{{else}}draft, not submitted yet{{end}}.</p>
+{{if eq .Intake.Status "submitted"}}<dl>{{range .IntakeFields}}{{$v := index $.Data.Intake.Answers .Key}}{{if $v}}<dt>{{.Label}}</dt><dd>{{$v}}</dd>{{end}}{{end}}</dl>{{end}}
+{{else}}<p class="muted">The client has not started the brief. They find it on their project page.</p>{{end}}
+{{if .IntakeComments}}<ul class="comments">{{range .IntakeComments}}<li class="comment"><span class="who"><strong>{{.Author}}</strong> {{date .CreatedAt}}<span class="tag{{if eq .Visibility "client"}} -client{{end}}">{{if eq .Visibility "client"}}client sees this{{else}}internal{{end}}</span></span><span class="text{{if eq .Body "(deleted)"}} -gone{{end}}">{{.Body}}</span>{{if and .CanDelete (not $p.Closed)}}<form method="post" action="/comments/{{.ID}}/delete"><button type="submit" class="-quiet -sm">Delete</button></form>{{end}}</li>{{end}}</ul>{{end}}
+{{if not $p.Closed}}
+<form method="post" action="/projects/{{$p.ID}}/intake/comment" class="inline reply">
+  <div class="field"><label for="clarify">Ask the client about the brief</label><input id="clarify" name="body" required maxlength="10000" placeholder="Which cakes should be featured first?"></div>
+  <button type="submit">Send question</button>
+</form>
+{{end}}
+</div></section>
+
+<section class="block"><h2>Team on this project</h2>
+<div class="card">
+<ul class="plain stack">{{range .Members}}<li class="row -between"><span>{{.Name}} <small>{{.Email}}</small></span>{{if and $.IsOwner (not $p.Closed)}}<form method="post" action="/projects/{{$p.ID}}/members/{{.ID}}/remove"><button type="submit" class="-quiet -sm">Remove</button></form>{{end}}</li>{{else}}<li class="muted">Nobody assigned. Staff see this project only after the owner assigns them.</li>{{end}}</ul>
 {{if and $.IsOwner .Candidates (not $p.Closed)}}
-<form method="post" action="/projects/{{$p.ID}}/members">
-  <label for="user_id">Assign staff</label>
-  <select id="user_id" name="user_id">{{range .Candidates}}<option value="{{.ID}}">{{.Name}} ({{.Email}})</option>{{end}}</select>
+<form method="post" action="/projects/{{$p.ID}}/members" class="inline mt">
+  <div class="field"><label for="user_id">Assign staff</label><select id="user_id" name="user_id">{{range .Candidates}}<option value="{{.ID}}">{{.Name}} ({{.Email}})</option>{{end}}</select></div>
   <button type="submit">Assign</button>
 </form>
 {{end}}
+</div></section>
 
-<h2>Milestones</h2>
+<section class="block"><h2>Milestones <small>Only "client" milestones show on the client's page</small></h2>
 {{if .Milestones}}
-<table>
-<thead><tr><th>Title</th><th>Target</th><th>Status</th><th>Visible to client</th><th>Latest update</th>{{if not $p.Closed}}<th></th>{{end}}</tr></thead>
+<div class="table-wrap"><table class="ms">
+<thead><tr><th>Milestone</th><th>Target</th><th>Status</th><th>Visible to client</th><th>Latest update</th>{{if not $p.Closed}}<th></th>{{end}}</tr></thead>
 <tbody>{{range .Milestones}}<tr>
 {{if $p.Closed}}
-<td>{{.Title}}</td><td>{{.TargetDate}}</td><td>{{human .Status}}</td><td>{{if eq .Visibility "client"}}yes{{else}}no{{end}}</td><td>{{.LatestUpdate}}</td>
+<td>{{.Title}}</td><td>{{.TargetDate}}</td><td><span class="state -{{.Status}}">{{human .Status}}</span></td><td>{{if eq .Visibility "client"}}<span class="yes">yes</span>{{else}}<span class="no">no</span>{{end}}</td><td>{{.LatestUpdate}}</td>
 {{else}}
 <form method="post" action="/milestones/{{.ID}}" id="ms-{{.ID}}"></form>
 <td><input form="ms-{{.ID}}" name="title" value="{{.Title}}" required maxlength="200" aria-label="Title"></td>
 <td><input form="ms-{{.ID}}" name="target_date" type="date" value="{{.TargetDate}}" aria-label="Target date"></td>
 <td><select form="ms-{{.ID}}" name="status" aria-label="Status"><option value="planned" {{if eq .Status "planned"}}selected{{end}}>planned</option><option value="in_progress" {{if eq .Status "in_progress"}}selected{{end}}>in progress</option><option value="done" {{if eq .Status "done"}}selected{{end}}>done</option></select></td>
-<td><select form="ms-{{.ID}}" name="visibility" aria-label="Visibility"><option value="internal" {{if eq .Visibility "internal"}}selected{{end}}>internal</option><option value="client" {{if eq .Visibility "client"}}selected{{end}}>client</option></select></td>
+<td><select form="ms-{{.ID}}" name="visibility" aria-label="Visible to client"><option value="internal" {{if eq .Visibility "internal"}}selected{{end}}>no</option><option value="client" {{if eq .Visibility "client"}}selected{{end}}>yes</option></select></td>
 <td><input form="ms-{{.ID}}" name="latest_update" value="{{.LatestUpdate}}" maxlength="10000" aria-label="Latest update"></td>
-<td><button form="ms-{{.ID}}" type="submit">Save</button>{{if eq .Status "planned"}} <form method="post" action="/milestones/{{.ID}}/delete" style="display:inline"><button type="submit">Delete</button></form>{{end}}</td>
+<td class="act"><div class="row"><button form="ms-{{.ID}}" type="submit" class="-sm">Save</button>{{if eq .Status "planned"}}<form method="post" action="/milestones/{{.ID}}/delete"><button type="submit" class="-quiet -sm">Delete</button></form>{{end}}</div></td>
 {{end}}
 </tr>{{end}}</tbody>
-</table>
-{{else}}<p>No milestones yet.</p>{{end}}
+</table></div>
+{{else}}<div class="empty"><p>No milestones yet. Milestones tell the client where the project stands without a meeting.</p></div>{{end}}
 {{if not $p.Closed}}
-<details>
+<details class="add">
 <summary>Add milestone</summary>
-<form method="post" action="/projects/{{$p.ID}}/milestones">
-  <p><label for="mtitle">Title</label><br><input id="mtitle" name="title" required maxlength="200"></p>
-  <p><label for="mdate">Target date</label><br><input id="mdate" name="target_date" type="date"></p>
-  <p><label for="mvis">Visibility</label><br><select id="mvis" name="visibility"><option value="internal">internal</option><option value="client">client</option></select></p>
-  <p><label for="mupd">Latest update</label><br><input id="mupd" name="latest_update" maxlength="10000"></p>
-  <button type="submit">Add milestone</button>
-</form>
+<div class="in"><form method="post" action="/projects/{{$p.ID}}/milestones">
+  <div class="fields">
+    <div class="field"><label for="mtitle">Title</label><input id="mtitle" name="title" required maxlength="200"></div>
+    <div class="field"><label for="mdate">Target date</label><input id="mdate" name="target_date" type="date"></div>
+    <div class="field"><label for="mvis">Visible to client</label><select id="mvis" name="visibility"><option value="internal">no</option><option value="client">yes</option></select></div>
+  </div>
+  <div class="field -wide mt"><label for="mupd">Latest update</label><input id="mupd" name="latest_update" maxlength="10000" placeholder="Brief approved, design starts Monday."></div>
+  <div class="form-actions"><button type="submit" class="-primary">Add milestone</button></div>
+</form></div>
 </details>
 {{end}}
+</section>
 
-<h2>Deliverables</h2>
+<section class="block"><h2>Deliverables <small>Each one is approved on its own</small></h2>
 {{if .Deliverables}}
-<table>
-<thead><tr><th>Title</th><th>Required</th><th>Latest version</th><th>State</th></tr></thead>
-<tbody>{{range .Deliverables}}<tr><td><a href="/deliverables/{{.ID}}">{{.Title}}</a></td><td>{{if .Required}}yes{{else}}no{{end}}</td><td>{{if .LatestNumber}}v{{.LatestNumber}}{{else}}—{{end}}</td><td>{{if .LatestState}}{{human .LatestState}}{{else}}no version{{end}}</td></tr>{{end}}</tbody>
-</table>
-{{else}}<p>No deliverables yet.</p>{{end}}
+<div class="table-wrap"><table>
+<thead><tr><th>Deliverable</th><th>Required for sign-off</th><th>Latest version</th><th>State</th></tr></thead>
+<tbody>{{range .Deliverables}}<tr><td><a href="/deliverables/{{.ID}}">{{.Title}}</a></td><td>{{if .Required}}<span class="yes">yes</span>{{else}}<span class="no">optional</span>{{end}}</td><td>{{if .LatestNumber}}v{{.LatestNumber}}{{else}}<span class="no">none</span>{{end}}</td><td>{{if .LatestState}}<span class="state -{{.LatestState}}">{{human .LatestState}}</span>{{else}}<span class="no">no version</span>{{end}}</td></tr>{{end}}</tbody>
+</table></div>
+{{else}}<div class="empty"><p>No deliverables yet. Add one thing the client must approve, such as a logo or a homepage.</p></div>{{end}}
 {{if not $p.Closed}}
-<details>
+<details class="add" {{if not .Deliverables}}open{{end}}>
 <summary>Add deliverable</summary>
-<form method="post" action="/projects/{{$p.ID}}/deliverables">
-  <p><label for="dtitle">Title</label><br><input id="dtitle" name="title" required maxlength="200"></p>
-  <p><label for="ddesc">Description</label><br><textarea id="ddesc" name="description" rows="2" maxlength="10000"></textarea></p>
-  <p><label><input type="checkbox" name="required" value="1" checked> Required for final sign-off</label></p>
-  <button type="submit">Add deliverable</button>
-</form>
+<div class="in"><form method="post" action="/projects/{{$p.ID}}/deliverables">
+  <div class="fields">
+    <div class="field"><label for="dtitle">Title</label><input id="dtitle" name="title" required maxlength="200" placeholder="Logo refresh"></div>
+    <div class="field"><label for="ddesc">Description</label><input id="ddesc" name="description" maxlength="10000"></div>
+  </div>
+  <div class="field -wide mt"><label class="check"><input type="checkbox" name="required" value="1" checked> Required for final sign-off</label></div>
+  <div class="form-actions"><button type="submit" class="-primary">Add deliverable</button></div>
+</form></div>
 </details>
 {{end}}
+</section>
 
-<h2>Invoices</h2>
+<section class="block"><h2>Invoices <small>Records only. Payment happens on the link.</small></h2>
 {{if .Invoices}}
-<table>
+<div class="table-wrap"><table>
 <thead><tr><th>Number</th><th>Amount</th><th>Due</th><th>Status</th><th>Visible to client</th><th>Document</th><th>Payment link</th>{{if not $p.Closed}}<th></th>{{end}}</tr></thead>
 <tbody>{{range .Invoices}}<tr>
-{{$editable := and (not $p.Closed) (or (eq .Status "draft") (eq .Status "sent"))}}
-{{if $editable}}
-<form method="post" action="/invoices/{{.ID}}" id="inv-{{.ID}}" enctype="multipart/form-data"></form>
-<td><input form="inv-{{.ID}}" name="number" value="{{.Number}}" required maxlength="60" size="10" aria-label="Invoice number"></td>
-<td><input form="inv-{{.ID}}" name="amount" value="{{amount .AmountCents}}" required inputmode="decimal" size="9" aria-label="Amount"> <input form="inv-{{.ID}}" name="currency" value="{{.Currency}}" required maxlength="3" size="3" aria-label="Currency"></td>
-<td><input form="inv-{{.ID}}" name="due_date" type="date" value="{{.DueDate}}" aria-label="Due date"></td>
-<td>{{.Status}}</td>
-<td><select form="inv-{{.ID}}" name="visibility" aria-label="Visible to client"><option value="client" {{if eq .Visibility "client"}}selected{{end}}>yes</option><option value="internal" {{if eq .Visibility "internal"}}selected{{end}}>no</option></select></td>
-<td>{{if .FileID.Valid}}<a href="/invoices/{{.ID}}/document">Download</a><br>{{end}}<input form="inv-{{.ID}}" name="document" type="file" aria-label="Replace document"></td>
-<td><input form="inv-{{.ID}}" name="payment_url" type="url" value="{{.PaymentURL}}" maxlength="2048" size="14" aria-label="Payment link"></td>
-{{else}}
-<td>{{.Number}}</td><td>{{money .AmountCents .Currency}}</td><td>{{.DueDate}}</td><td>{{.Status}}</td><td>{{if eq .Visibility "client"}}yes{{else}}no{{end}}</td>
-<td>{{if .FileID.Valid}}<a href="/invoices/{{.ID}}/document">Download</a>{{else}}—{{end}}</td>
-<td>{{if .PaymentURL}}<a href="{{.PaymentURL}}" rel="noopener noreferrer">Open</a>{{else}}—{{end}}</td>
-{{end}}
-{{if not $p.Closed}}<td>
-{{if $editable}}<button form="inv-{{.ID}}" type="submit">Save</button>{{end}}
-{{if eq .Status "draft"}}<form method="post" action="/invoices/{{.ID}}/status" style="display:inline"><input type="hidden" name="to" value="sent"><button type="submit">Mark sent</button></form>{{end}}
-{{if eq .Status "sent"}}<form method="post" action="/invoices/{{.ID}}/status" style="display:inline"><input type="hidden" name="to" value="paid"><button type="submit">Mark paid</button></form>{{end}}
-{{if or (eq .Status "draft") (eq .Status "sent")}}<form method="post" action="/invoices/{{.ID}}/status" style="display:inline"><input type="hidden" name="to" value="canceled"><button type="submit">Cancel</button></form>{{end}}
-</td>{{end}}
+<td>{{.Number}}</td><td>{{money .AmountCents .Currency}}</td><td>{{.DueDate}}</td><td><span class="state -{{.Status}}">{{.Status}}</span></td><td>{{if eq .Visibility "client"}}<span class="yes">yes</span>{{else}}<span class="no">no</span>{{end}}</td>
+<td>{{if .FileID.Valid}}<a href="/invoices/{{.ID}}/document">Download</a>{{else}}<span class="no">none</span>{{end}}</td>
+<td>{{if .PaymentURL}}<a href="{{.PaymentURL}}" rel="noopener noreferrer">Open</a>{{else}}<span class="no">none</span>{{end}}</td>
+{{if not $p.Closed}}<td class="act"><div class="row">
+{{if eq .Status "draft"}}<form method="post" action="/invoices/{{.ID}}/status"><input type="hidden" name="to" value="sent"><button type="submit" class="-primary -sm">Mark sent</button></form>{{end}}
+{{if eq .Status "sent"}}<form method="post" action="/invoices/{{.ID}}/status"><input type="hidden" name="to" value="paid"><button type="submit" class="-primary -sm">Mark paid</button></form>{{end}}
+{{if or (eq .Status "draft") (eq .Status "sent")}}<form method="post" action="/invoices/{{.ID}}/status" data-confirm="Cancel invoice {{.Number}}?"><input type="hidden" name="to" value="canceled"><button type="submit" class="-quiet -sm">Cancel</button></form>{{end}}
+</div></td>{{end}}
 </tr>{{end}}</tbody>
-</table>
-{{else}}<p>No invoices yet.</p>{{end}}
+</table></div>
+{{if not $p.Closed}}{{range .Invoices}}{{if or (eq .Status "draft") (eq .Status "sent")}}
+<details class="edit"><summary>Edit {{.Number}}</summary>
+<div class="in card"><form method="post" action="/invoices/{{.ID}}" enctype="multipart/form-data">
+  <div class="fields">
+    <div class="field"><label for="n-{{.ID}}">Invoice number</label><input id="n-{{.ID}}" name="number" value="{{.Number}}" required maxlength="60"></div>
+    <div class="field"><label for="a-{{.ID}}">Amount</label><input id="a-{{.ID}}" name="amount" value="{{amount .AmountCents}}" required inputmode="decimal"></div>
+    <div class="field"><label for="cu-{{.ID}}">Currency</label><input id="cu-{{.ID}}" name="currency" value="{{.Currency}}" required maxlength="3"></div>
+    <div class="field"><label for="d-{{.ID}}">Due date</label><input id="d-{{.ID}}" name="due_date" type="date" value="{{.DueDate}}"></div>
+    <div class="field"><label for="u-{{.ID}}">External payment link</label><input id="u-{{.ID}}" name="payment_url" type="url" value="{{.PaymentURL}}" maxlength="2048"></div>
+    <div class="field"><label for="f-{{.ID}}">Replace document</label><input id="f-{{.ID}}" name="document" type="file"></div>
+    <div class="field"><label for="vi-{{.ID}}">Visible to client</label><select id="vi-{{.ID}}" name="visibility"><option value="client" {{if eq .Visibility "client"}}selected{{end}}>yes</option><option value="internal" {{if eq .Visibility "internal"}}selected{{end}}>no</option></select></div>
+  </div>
+  <div class="form-actions"><button type="submit" class="-primary">Save changes</button> <small>Paid and canceled invoices cannot be edited.</small></div>
+</form></div></details>
+{{end}}{{end}}{{end}}
+{{else}}<div class="empty"><p>No invoices yet.</p></div>{{end}}
 {{if not $p.Closed}}
-<details>
+<details class="add">
 <summary>Add invoice record</summary>
-<form method="post" action="/projects/{{$p.ID}}/invoices" enctype="multipart/form-data">
-  <p><label for="inum">Invoice number</label><br><input id="inum" name="number" required maxlength="60"></p>
-  <p><label for="iamt">Amount</label><br><input id="iamt" name="amount" required inputmode="decimal" placeholder="1250.00"> <label for="icur">Currency</label> <input id="icur" name="currency" required maxlength="3" value="{{$.Workspace.Currency}}" size="3"></p>
-  <p><label for="idue">Due date</label><br><input id="idue" name="due_date" type="date"></p>
-  <p><label for="iurl">External payment link</label><br><input id="iurl" name="payment_url" type="url" maxlength="2048"></p>
-  <p><label for="idoc">Invoice document (PDF)</label><br><input id="idoc" name="document" type="file"></p>
-  <p><label for="ivis">Visibility</label><br><select id="ivis" name="visibility"><option value="client">client</option><option value="internal">internal</option></select></p>
-  <button type="submit">Add invoice</button>
-</form>
+<div class="in"><form method="post" action="/projects/{{$p.ID}}/invoices" enctype="multipart/form-data">
+  <div class="fields">
+    <div class="field"><label for="inum">Invoice number</label><input id="inum" name="number" required maxlength="60" placeholder="INV-001"></div>
+    <div class="field"><label for="iamt">Amount</label><input id="iamt" name="amount" required inputmode="decimal" placeholder="1250.00"></div>
+    <div class="field"><label for="icur">Currency</label><input id="icur" name="currency" required maxlength="3" value="{{$.Workspace.Currency}}"></div>
+    <div class="field"><label for="idue">Due date</label><input id="idue" name="due_date" type="date"></div>
+    <div class="field"><label for="iurl">External payment link</label><input id="iurl" name="payment_url" type="url" maxlength="2048" placeholder="https://"></div>
+    <div class="field"><label for="idoc">Invoice document (PDF)</label><input id="idoc" name="document" type="file"></div>
+    <div class="field"><label for="ivis">Visible to client</label><select id="ivis" name="visibility"><option value="client">yes</option><option value="internal">no</option></select></div>
+  </div>
+  <div class="form-actions"><button type="submit" class="-primary">Add invoice</button> <small>Clients see it once it is marked sent.</small></div>
+</form></div>
 </details>
 {{end}}
+</section>
 
-<h2>Handoff</h2>
+<section class="block"><h2>Hand-over and sign-off</h2>
+<div class="card">
 {{with .Handoff}}
 {{if .Rows}}
-<table>
-<thead><tr><th>Required deliverable</th><th>Latest</th><th>Ready</th>{{if and $.IsOwner (not $p.Closed)}}<th>Waive</th>{{end}}</tr></thead>
-<tbody>{{range .Rows}}<tr><td><a href="/deliverables/{{.ID}}">{{.Title}}</a></td><td>{{if .LatestNumber}}v{{.LatestNumber}} {{human .LatestState}}{{else}}no version{{end}}{{if .Waiver}} · waived: {{.Waiver}}{{end}}</td><td>{{if .Satisfied}}yes{{else}}no{{end}}</td>
-{{if and $.IsOwner (not $p.Closed)}}<td>{{if not .Satisfied}}<form method="post" action="/deliverables/{{.ID}}/waive"><input name="reason" required minlength="3" maxlength="1000" placeholder="Reason" aria-label="Waiver reason"> <button type="submit">Waive</button></form>{{end}}</td>{{end}}
-</tr>{{end}}</tbody>
-</table>
-<p>{{if .Ready}}Ready: the client can sign off.{{else}}Not ready: every required deliverable must be approved or waived.{{end}}</p>
-{{else}}<p>No required deliverables. Mark at least one deliverable as required to enable sign-off.</p>{{end}}
-{{if .Signoffs}}<h3>Sign-offs</h3><ul>{{range .Signoffs}}<li>{{.By}} on {{date .CreatedAt}} <code>{{.Snapshot}}</code></li>{{end}}</ul>{{end}}
+<ul class="checklist">{{range .Rows}}<li class="{{if .Satisfied}}{{if .Waiver}}-waived{{else}}-done{{end}}{{end}}"><span class="mark">{{if .Satisfied}}✓{{end}}</span>
+<span><a href="/deliverables/{{.ID}}">{{.Title}}</a><br><small>{{if .Waiver}}Waived: {{.Waiver}}{{else if .LatestNumber}}v{{.LatestNumber}} {{human .LatestState}}{{else}}No version yet{{end}}</small></span>
+<span>{{if and $.IsOwner (not $p.Closed) (not .Satisfied)}}<form method="post" action="/deliverables/{{.ID}}/waive" class="inline"><label for="w-{{.ID}}" class="hint">Waive with reason</label><input id="w-{{.ID}}" name="reason" required minlength="3" maxlength="1000" size="18"><button type="submit" class="-sm">Waive</button></form>{{end}}</span></li>{{end}}</ul>
+<p class="mt">{{if .Ready}}<strong class="yes">Ready.</strong> The client can sign off now.{{else}}Not ready: every required deliverable must be approved or waived before the client can sign off.{{end}}</p>
+{{else}}<p class="muted">No required deliverables. Mark at least one deliverable as required to enable sign-off.</p>{{end}}
+{{range .Signoffs}}<div class="signed"><strong>Signed off by {{.By}}</strong> on {{date .CreatedAt}}<br><small><code>{{.Snapshot}}</code></small></div>{{end}}
 {{end}}
+</div></section>
 
-<h2>Activity</h2>
+<section class="block"><h2>Activity on this project</h2>
 {{if .Activity}}
-<table>
+<div class="table-wrap"><table>
 <thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead>
 <tbody>{{range .Activity}}<tr><td>{{date .CreatedAt}}</td><td>{{.Actor}}</td><td>{{human .Action}}</td><td><code>{{.Meta}}</code></td></tr>{{end}}</tbody>
-</table>
-{{else}}<p>Nothing recorded yet.</p>{{end}}
+</table></div>
+{{else}}<div class="empty"><p>Nothing recorded yet.</p></div>{{end}}
+</section>
 {{end}}
 {{end}}

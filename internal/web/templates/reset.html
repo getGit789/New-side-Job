@@ -1,7 +1,7 @@
 {{define "content"}}
 <h1>Choose a new password</h1>
-<form method="post" action="">
-  <p><label for="password">New password (12 to 200 characters, not a common password)</label><br><input id="password" name="password" type="password" required minlength="12" maxlength="200" autocomplete="new-password"></p>
-  <button type="submit">Set password</button> <small>Every existing session is logged out.</small>
+<form method="post" action="" class="stack">
+  <div class="field"><label for="password">New password <span class="hint">12 to 200 characters, not a common password</span></label><input id="password" name="password" type="password" required minlength="12" maxlength="200" autocomplete="new-password"></div>
+  <div class="form-actions"><button type="submit" class="-primary">Set password</button> <small>Every existing session is logged out.</small></div>
 </form>
 {{end}}

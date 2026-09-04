@@ -94,12 +94,12 @@ var publicRoutes = map[string]bool{
 	"GET /healthz": true, "GET /setup": true, "POST /setup": true, "GET /login": true, "POST /login": true,
 	"POST /logout": true, "GET /invite/{token}": true, "POST /invite/{token}": true, "/": true,
 	"GET /password/forgot": true, "POST /password/forgot": true, "GET /password/reset/{token}": true, "POST /password/reset/{token}": true,
-	"GET /logo": true,
+	"GET /logo": true, "GET /static/": true,
 }
 
 func TestPermissionMatrix(t *testing.T) {
 	// Every registered route must be in the matrix or declared public.
-	routeRe := regexp.MustCompile(`mux\.HandleFunc\("([^"]+)"`)
+	routeRe := regexp.MustCompile(`mux\.Handle(?:Func)?\("([^"]+)"`)
 	files, _ := filepath.Glob("*.go")
 	for _, f := range files {
 		if strings.HasSuffix(f, "_test.go") {

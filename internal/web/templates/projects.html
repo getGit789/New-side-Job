@@ -1,34 +1,40 @@
 {{define "content"}}
 {{with .Data}}
-<h1>Projects</h1>
-<form method="get" action="/projects">
-  <label for="q">Search</label> <input id="q" name="q" value="{{.Query}}">
-  <label for="status">Status</label>
+<div class="page"><div><h1>Projects</h1><p class="sub">One project per engagement: brief, milestones, deliverables, invoices, sign-off.</p></div></div>
+<form method="get" action="/projects" class="inline narrow">
+  <div class="field"><label for="q">Find a project</label><input id="q" name="q" value="{{.Query}}" placeholder="Project or client name"></div>
+  <div class="field -fixed"><label for="status">Status</label>
   <select id="status" name="status">
     <option value="" {{if eq .Status ""}}selected{{end}}>All</option>
     <option value="active" {{if eq .Status "active"}}selected{{end}}>Active</option>
     <option value="closed" {{if eq .Status "closed"}}selected{{end}}>Closed</option>
-  </select>
+  </select></div>
   <button type="submit">Filter</button>
 </form>
-<details>
+<details class="add" {{if not .Projects}}open{{end}}>
 <summary>New project</summary>
+<div class="in">
 {{if .Clients}}
 <form method="post" action="/projects">
-  <p><label for="client_org_id">Client</label><br><select id="client_org_id" name="client_org_id" required>{{range .Clients}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></p>
-  <p><label for="name">Project name</label><br><input id="name" name="name" required maxlength="200"></p>
-  <p><label for="summary">Summary</label><br><textarea id="summary" name="summary" rows="3" maxlength="10000"></textarea></p>
-  <button type="submit">Create project</button>
+  <div class="fields">
+    <div class="field"><label for="client_org_id">Client</label><select id="client_org_id" name="client_org_id" required>{{range .Clients}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></div>
+    <div class="field"><label for="name">Project name</label><input id="name" name="name" required maxlength="200" placeholder="Website redesign"></div>
+  </div>
+  <div class="field -wide mt"><label for="summary">Summary <span class="hint">Shown to the client at the top of their project page.</span></label><textarea id="summary" name="summary" rows="2" maxlength="10000"></textarea></div>
+  <div class="form-actions"><button type="submit" class="-primary">Create project</button></div>
 </form>
 {{else}}<p>Add a <a href="/clients">client</a> first.</p>{{end}}
+</div>
 </details>
+<section class="block">
 {{if .Projects}}
-<table>
+<div class="table-wrap"><table>
 <thead><tr><th>Project</th><th>Client</th><th>Status</th><th>Updated</th></tr></thead>
-<tbody>{{range .Projects}}<tr><td><a href="/projects/{{.ID}}">{{.Name}}</a></td><td><a href="/clients/{{.ClientID}}">{{.ClientName}}</a></td><td>{{.Status}}</td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
-</table>
-{{else}}<p>No projects found.</p>{{end}}
-<p>{{if gt .Page 1}}<a href="/projects?q={{.Query}}&status={{.Status}}&page={{add .Page -1}}">Previous</a>{{end}}
-{{if .HasNext}}<a href="/projects?q={{.Query}}&status={{.Status}}&page={{add .Page 1}}">Next</a>{{end}}</p>
+<tbody>{{range .Projects}}<tr><td><a href="/projects/{{.ID}}">{{.Name}}</a></td><td><a href="/clients/{{.ClientID}}">{{.ClientName}}</a></td><td><span class="state -{{.Status}}">{{.Status}}</span></td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
+</table></div>
+{{else}}<div class="empty"><p>No projects found.</p></div>{{end}}
+<nav class="pager" aria-label="Pages">{{if gt .Page 1}}<a href="/projects?q={{.Query}}&status={{.Status}}&page={{add .Page -1}}">Previous</a>{{end}}
+{{if .HasNext}}<a href="/projects?q={{.Query}}&status={{.Status}}&page={{add .Page 1}}">Next</a>{{end}}</nav>
+</section>
 {{end}}
 {{end}}

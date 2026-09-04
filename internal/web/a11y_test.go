@@ -12,6 +12,7 @@ import (
 // Keyboard use follows from using only native links, forms and buttons (no scripts).
 func TestTemplatesAreAccessible(t *testing.T) {
 	control := regexp.MustCompile(`<(input|select|textarea)\b[^>]*>`)
+	labelOpen := regexp.MustCompile(`<label\b[^>]*>$`)
 	attr := func(tag, name string) string {
 		m := regexp.MustCompile(name + `="([^"]*)"`).FindStringSubmatch(tag)
 		if m == nil {
@@ -35,7 +36,7 @@ func TestTemplatesAreAccessible(t *testing.T) {
 			if attr(tag, "type") == "hidden" || attr(tag, "aria-label") != "" {
 				continue
 			}
-			wrapped := strings.HasSuffix(strings.TrimSpace(html[:loc[0]]), "<label>")
+			wrapped := labelOpen.MatchString(strings.TrimSpace(html[:loc[0]]))
 			id := attr(tag, "id")
 			if !wrapped && (id == "" || !strings.Contains(html, `for="`+id+`"`)) {
 				t.Errorf("%s: control has no label: %s", path, tag)

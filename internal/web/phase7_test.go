@@ -32,10 +32,13 @@ func TestWorkspaceSettings(t *testing.T) {
 	if r.StatusCode != 200 {
 		t.Fatalf("project page: %d", r.StatusCode)
 	}
-	for _, want := range []string{"Acme Studio", "Acme, 1 Main St", `src="/logo"`, `value="EUR"`} {
+	for _, want := range []string{"Acme Studio", `src="/logo"`, `value="EUR"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("project page lacks %q", want)
 		}
+	}
+	if _, login := e.browser().get("/login"); !strings.Contains(login, "Acme, 1 Main St") || !strings.Contains(login, "Acme Studio") {
+		t.Error("login page must show the workspace name and contact details")
 	}
 	if created := e.scalar(`SELECT created_at FROM projects WHERE id = ?`, pid); !strings.Contains(body, created[8:10]+"."+created[5:7]+"."+created[:4]) {
 		t.Errorf("dates must use the workspace format (created %s):\n%s", created, body)

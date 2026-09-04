@@ -1,24 +1,26 @@
 {{define "content"}}
 {{with .Data}}
-<h1>Team</h1>
-<table>
+<div class="page"><div><h1>Team</h1><p class="sub">Staff see only the projects they are assigned to.</p></div></div>
+<div class="table-wrap"><table>
 <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Since</th><th></th></tr></thead>
-<tbody>{{range .Members}}<tr><td>{{.Name}}</td><td>{{.Email}}</td><td>{{.Role}}</td><td>{{date .CreatedAt}}</td>
-<td>{{if eq .Role "staff"}}<form method="post" action="/team/{{.ID}}/remove"><button type="submit">Remove</button></form>{{end}}</td></tr>{{end}}</tbody>
-</table>
-<h2>Invite staff</h2>
-<form method="post" action="/team/invite">
-  <label for="email">Email</label> <input id="email" name="email" type="email" required maxlength="254">
-  <button type="submit">Send invitation</button>
+<tbody>{{range .Members}}<tr><td>{{.Name}}</td><td>{{.Email}}</td><td>{{human .Role}}</td><td>{{date .CreatedAt}}</td>
+<td class="act">{{if eq .Role "staff"}}<form method="post" action="/team/{{.ID}}/remove" data-confirm="Remove {{.Name}} from the team? They lose access at once."><button type="submit" class="-danger -sm">Remove</button></form>{{end}}</td></tr>{{end}}</tbody>
+</table></div>
+<section class="block"><h2>Invite staff</h2>
+<div class="card">
+<form method="post" action="/team/invite" class="inline">
+  <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required maxlength="254"></div>
+  <button type="submit" class="-primary">Send invitation</button>
 </form>
-<p><small>The link is valid for 7 days and works once. If mail is not configured, the link is written to the server log.</small></p>
+<p class="muted mt-s">The link works once and for 7 days. If mail is not configured, the link is written to the server log.</p>
+</div></section>
 {{if .Invitations}}
-<h2>Pending invitations</h2>
-<table>
+<section class="block"><h2>Pending invitations</h2>
+<div class="table-wrap"><table>
 <thead><tr><th>Email</th><th>Role</th><th>Sent</th><th>Expires</th><th></th></tr></thead>
-<tbody>{{range .Invitations}}<tr><td>{{.Email}}</td><td>{{.Role}}</td><td>{{date .CreatedAt}}</td><td>{{date .ExpiresAt}}</td>
-<td><form method="post" action="/invitations/{{.ID}}/revoke"><button type="submit">Revoke</button></form></td></tr>{{end}}</tbody>
-</table>
+<tbody>{{range .Invitations}}<tr><td>{{.Email}}</td><td>{{human .Role}}</td><td>{{date .CreatedAt}}</td><td>{{date .ExpiresAt}}</td>
+<td class="act"><form method="post" action="/invitations/{{.ID}}/revoke"><button type="submit" class="-sm">Revoke</button></form></td></tr>{{end}}</tbody>
+</table></div></section>
 {{end}}
 {{end}}
 {{end}}

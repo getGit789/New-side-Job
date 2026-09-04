@@ -54,6 +54,9 @@ never sends email, caps uploads at 5 MB, blocks password changes, and resets eve
 
 Rules the server enforces are in [docs/product-contract.md](docs/product-contract.md).
 
+Interface: `internal/web/static/app.css` is the whole design system (tokens at the top), `app.js` only adds
+confirmations and the current-page marker. The typeface ships with the binary; pages make no external requests.
+
 Hardening (Phase 5): a permission-matrix test covers every route for every role, a seeded benchmark checks the
 performance budgets ([docs/performance.md](docs/performance.md)), backup/restore and upgrade drills run in the
 test suite, and the release gates are listed in [docs/release-checklist.md](docs/release-checklist.md).

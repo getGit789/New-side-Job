@@ -3,6 +3,8 @@
 set -e
 echo "BriefRelay third-party licenses"
 echo "Generated $(date -u +%F) from go.mod. Every module below is BSD/MIT-style licensed."
+printf '\n================================================================\nBricolage Grotesque (typeface, SIL Open Font License 1.1)\n================================================================\n'
+cat internal/web/static/OFL-bricolage.txt
 go list -m -f '{{.Path}} {{.Version}} {{.Dir}}' all | while read -r path version dir; do
   [ -z "$dir" ] && continue
   for f in LICENSE LICENSE.md LICENSE.txt COPYING; do

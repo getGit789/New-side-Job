@@ -1,27 +1,29 @@
 {{define "content"}}
 {{with .Data}}
-<h1>{{.Workspace}}</h1>
 {{if $.Role.IsStaff}}
-<ul>
-  <li>Active projects: {{.ActiveProjects}}</li>
-  <li>Clients: {{.Clients}}</li>
-  <li>Versions waiting for a client decision: {{.PendingReviews}}</li>
-</ul>
-<h2>Recent projects</h2>
+<div class="page"><div><h1>Overview</h1><p class="sub">Where things stand across the workspace.</p></div>
+<div class="actions"><a class="btn -primary" href="/projects">New project</a></div></div>
+<div class="grid">
+  <a class="stat{{if .PendingReviews}} -alert{{end}}" href="/projects?status=active"><span class="label">Versions waiting for a client decision</span><span class="big">{{.PendingReviews}}</span></a>
+  <a class="stat" href="/projects?status=active"><span class="label">Active projects</span><span class="big">{{.ActiveProjects}}</span></a>
+  <a class="stat" href="/clients"><span class="label">Clients</span><span class="big">{{.Clients}}</span></a>
+</div>
+<section class="block"><h2>Recent projects <small><a href="/projects">All projects</a></small></h2>
 {{if .Recent}}
-<table>
+<div class="table-wrap"><table>
 <thead><tr><th>Project</th><th>Client</th><th>Updated</th></tr></thead>
 <tbody>{{range .Recent}}<tr><td><a href="/projects/{{.ID}}">{{.Name}}</a></td><td><a href="/clients/{{.ClientID}}">{{.ClientName}}</a></td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
-</table>
-{{else}}<p>No projects yet. <a href="/clients">Add a client</a>, then <a href="/projects">create a project</a>.</p>{{end}}
+</table></div>
+{{else}}<div class="empty"><p>No projects yet. <a href="/clients">Add a client</a>, then <a href="/projects">create a project</a>.</p></div>{{end}}
+</section>
 {{else}}
-<h2>Your projects</h2>
+<div class="page"><div><h1>Your projects</h1><p class="sub">Everything {{$.Workspace.Name}} has shared with you.</p></div></div>
 {{if .Recent}}
-<table>
+<div class="table-wrap"><table>
 <thead><tr><th>Project</th><th>Status</th><th>Updated</th></tr></thead>
-<tbody>{{range .Recent}}<tr><td><a href="/portal/projects/{{.ID}}">{{.Name}}</a></td><td>{{.Status}}</td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
-</table>
-{{else}}<p>No projects have been shared with you yet.</p>{{end}}
+<tbody>{{range .Recent}}<tr><td><a href="/portal/projects/{{.ID}}">{{.Name}}</a></td><td><span class="state -{{.Status}}">{{.Status}}</span></td><td>{{date .UpdatedAt}}</td></tr>{{end}}</tbody>
+</table></div>
+{{else}}<div class="empty"><p>No projects have been shared with you yet.</p></div>{{end}}
 {{end}}
 {{end}}
 {{end}}

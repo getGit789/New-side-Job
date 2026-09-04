@@ -1,21 +1,22 @@
 {{define "content"}}
 <h1>Log in</h1>
-<form method="post" action="/login">
-  <p><label for="email">Email</label><br><input id="email" name="email" type="email" required autocomplete="username" value="{{.Form.email}}"></p>
-  <p><label for="password">Password</label><br><input id="password" name="password" type="password" required autocomplete="current-password"></p>
-  <button type="submit">Log in</button>
+<p class="muted">Client portal for review, approval and hand-over.</p>
+<form method="post" action="/login" class="stack">
+  <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="username" value="{{.Form.email}}"></div>
+  <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" required autocomplete="current-password"></div>
+  <div class="form-actions"><button type="submit" class="-primary">Log in</button> <a href="/password/forgot">Forgot your password?</a></div>
 </form>
-<p><a href="/password/forgot">Forgot your password?</a></p>
 {{if .Demo}}
+<hr class="divider">
 <h2>Sample accounts</h2>
-<table>
+<p class="muted">Try the agency side or the client side. Both reset every hour.</p>
+<div class="table-wrap"><table class="creds">
 <thead><tr><th>Role</th><th>Email</th><th>Password</th></tr></thead>
 <tbody>
 <tr><td>Agency owner</td><td>owner@demo.test</td><td>demo-owner-password</td></tr>
 <tr><td>Staff</td><td>staff@demo.test</td><td>demo-staff-password</td></tr>
 <tr><td>Client</td><td>client@demo.test</td><td>demo-client-password</td></tr>
 </tbody>
-</table>
-<p>Owner path: clients, projects, deliverables, invoices, activity. Client path: review the logo, comment, approve, sign off.</p>
+</table></div>
 {{end}}
 {{end}}

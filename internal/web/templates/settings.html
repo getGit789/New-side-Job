@@ -1,19 +1,30 @@
 {{define "content"}}
 {{with .Data}}{{$p := .Prefs}}
-<h1>Settings</h1>
-{{if $.Demo}}<p>Settings are shown but cannot be saved in the demo.</p>{{end}}
+<div class="page"><div><h1>Settings</h1><p class="sub">Branding, time and money formats, and what clients may upload.</p></div></div>
+{{if $.Demo}}<p class="notice">Settings are shown but cannot be saved in the demo.</p>{{end}}
 <form method="post" action="/settings" enctype="multipart/form-data">
-  <p><label for="name">Workspace name</label><br><input id="name" name="name" required maxlength="200" value="{{$p.Name}}"></p>
-  <p><label for="contact">Contact details shown to clients (address, phone, email)</label><br><textarea id="contact" name="contact" rows="3" maxlength="10000">{{$p.Contact}}</textarea></p>
-  <p><label for="logo">Logo (PNG, JPEG, GIF or WebP)</label><br><input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
-  {{if $p.HasLogo}}<br><img src="/logo" alt="Current logo" height="48">{{end}}</p>
-  <p><label for="time_zone">Time zone (IANA name)</label><br><input id="time_zone" name="time_zone" required maxlength="64" list="tz" value="{{$p.TimeZone}}">
-  <datalist id="tz"><option value="UTC"><option value="Europe/London"><option value="Europe/Berlin"><option value="Europe/Paris"><option value="Europe/Madrid"><option value="Europe/Belgrade"><option value="America/New_York"><option value="America/Chicago"><option value="America/Denver"><option value="America/Los_Angeles"><option value="America/Sao_Paulo"><option value="Asia/Dubai"><option value="Asia/Kolkata"><option value="Asia/Singapore"><option value="Asia/Tokyo"><option value="Australia/Sydney"></datalist></p>
-  <p><label for="date_format">Date format</label><br><select id="date_format" name="date_format">{{range .Formats}}<option value="{{.Layout}}" {{if eq .Layout $p.DateFormat}}selected{{end}}>{{.Label}}</option>{{end}}</select></p>
-  <p><label for="currency">Default currency (3-letter code)</label><br><input id="currency" name="currency" required maxlength="3" size="3" value="{{$p.Currency}}"></p>
-  <p><label for="allowed_ext">Allowed upload types, comma separated (empty = any type). Always blocked: {{.Blocked}}</label><br><input id="allowed_ext" name="allowed_ext" maxlength="1000" placeholder="pdf, png, jpg, zip" value="{{$p.AllowedExt}}"></p>
-  <button type="submit" {{if $.Demo}}disabled{{end}}>Save settings</button>
+<section class="block"><h2>Workspace</h2>
+<div class="card stack">
+  <div class="field"><label for="name">Workspace name</label><input id="name" name="name" required maxlength="200" value="{{$p.Name}}"></div>
+  <div class="field"><label for="logo">Logo <span class="hint">PNG, JPEG, GIF or WebP. Shown in the navigation and on the login page.</span></label><input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+  {{if $p.HasLogo}}<p class="mt-s"><img src="/logo" alt="Current logo" height="40"></p>{{end}}</div>
+  <div class="field"><label for="contact">Contact details shown to clients <span class="hint">Address, phone, email. Appears at the bottom of every client page.</span></label><textarea id="contact" name="contact" rows="3" maxlength="10000">{{$p.Contact}}</textarea></div>
+</div></section>
+<section class="block"><h2>Formats</h2>
+<div class="card">
+<div class="fields">
+  <div class="field"><label for="time_zone">Time zone <span class="hint">IANA name, for example Europe/Berlin</span></label><input id="time_zone" name="time_zone" required maxlength="64" list="tz" value="{{$p.TimeZone}}">
+  <datalist id="tz"><option value="UTC"><option value="Europe/London"><option value="Europe/Berlin"><option value="Europe/Paris"><option value="Europe/Madrid"><option value="Europe/Belgrade"><option value="America/New_York"><option value="America/Chicago"><option value="America/Denver"><option value="America/Los_Angeles"><option value="America/Sao_Paulo"><option value="Asia/Dubai"><option value="Asia/Kolkata"><option value="Asia/Singapore"><option value="Asia/Tokyo"><option value="Australia/Sydney"></datalist></div>
+  <div class="field"><label for="date_format">Date format</label><select id="date_format" name="date_format">{{range .Formats}}<option value="{{.Layout}}" {{if eq .Layout $p.DateFormat}}selected{{end}}>{{.Label}}</option>{{end}}</select></div>
+  <div class="field"><label for="currency">Default currency <span class="hint">3-letter code for new invoices</span></label><input id="currency" name="currency" required maxlength="3" value="{{$p.Currency}}"></div>
+</div>
+</div></section>
+<section class="block"><h2>Uploads</h2>
+<div class="card">
+  <div class="field"><label for="allowed_ext">Allowed file types <span class="hint">Comma separated, for example pdf, png, zip. Leave empty to allow any type. Always blocked: {{.Blocked}}.</span></label><input id="allowed_ext" name="allowed_ext" maxlength="1000" placeholder="pdf, png, jpg, zip" value="{{$p.AllowedExt}}"></div>
+  <p class="muted">The upload size limit and outbound email are set in <code>.env</code>. See the install guide.</p>
+</div></section>
+<div class="form-actions"><button type="submit" class="-primary" {{if $.Demo}}disabled{{end}}>Save settings</button></div>
 </form>
-<p><small>Upload size limit and email are set in <code>.env</code>; see the install guide.</small></p>
 {{end}}
 {{end}}

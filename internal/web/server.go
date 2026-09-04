@@ -31,6 +31,9 @@ import (
 //go:embed templates/*.html
 var templateFS embed.FS
 
+//go:embed static
+var staticFS embed.FS
+
 const sessionCookie = "br_session"
 
 // Version is set at build time with -ldflags "-X briefrelay/internal/web.Version=1.0.0".
@@ -103,6 +106,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /login", s.loginSubmit)
 	mux.HandleFunc("POST /logout", s.logout)
 	mux.HandleFunc("GET /{$}", s.home)
+	mux.Handle("GET /static/", s.static())
 	s.clientRoutes(mux)
 	s.projectRoutes(mux)
 	s.deliverableRoutes(mux)
@@ -129,6 +133,20 @@ func (s *Server) Handler() http.Handler {
 	h = s.logging(h)
 	h = s.recoverer(h)
 	return h
+}
+
+// static serves the stylesheet, script and font with long caching; templates append ?v=Version so an
+// update changes the URL.
+func (s *Server) static() http.Handler {
+	fs := http.FileServerFS(staticFS)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/") {
+			s.errorPage(w, r, http.StatusNotFound, "That page does not exist.")
+			return
+		}
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		fs.ServeHTTP(w, r)
+	})
 }
 
 // ---- middleware ----
@@ -175,7 +193,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		h.Set("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'")
+		h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'")
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		if s.cfg.BaseURL.Scheme == "https" {
 			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -186,6 +204,10 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 
 func (s *Server) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/static/") {
+			next.ServeHTTP(w, r)
+			return
+		}
 		ip := s.clientIP(r)
 		authPath := r.Method == http.MethodPost && (r.URL.Path == "/login" || r.URL.Path == "/setup" || strings.HasPrefix(r.URL.Path, "/invite/") || strings.HasPrefix(r.URL.Path, "/password/"))
 		if !s.limiter.allow(ip) || (authPath && !s.authLimit.allow(ip)) {
@@ -202,7 +224,7 @@ func (s *Server) setupGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		isSetup := r.URL.Path == "/setup"
 		switch {
-		case !s.installed.Load() && !isSetup && r.URL.Path != "/healthz":
+		case !s.installed.Load() && !isSetup && r.URL.Path != "/healthz" && !strings.HasPrefix(r.URL.Path, "/static/"):
 			http.Redirect(w, r, "/setup", http.StatusSeeOther)
 		case s.installed.Load() && isSetup:
 			s.errorPage(w, r, http.StatusNotFound, "Setup is complete and locked.")
@@ -255,6 +277,7 @@ type view struct {
 	Unread    int
 	Demo      bool
 	Workspace *prefs
+	Version   string
 	Title     string
 	Error     string
 	Form      map[string]string
@@ -267,6 +290,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page
 	v.User = s.user(r)
 	v.Demo = s.cfg.IsDemo()
 	v.Workspace = s.prefs.Load()
+	v.Version = Version
 	if v.User != nil {
 		v.Role = domain.Role(v.User.Role)
 		v.IsOwner = v.Role == domain.RoleOwner
