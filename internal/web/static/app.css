@@ -330,26 +330,36 @@ table.ms td:nth-child(3) { width: 150px; }
 /* ---------- brand mark and drawer ---------- */
 .mark { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--pine); stroke-width: 2; }
 .mark rect:last-child { fill: var(--pine-tint); }
-.railtop { display: contents; }
-.drawer { display: contents; }
+.railtop, .drawer, .sheet { display: contents; }
 .drawer > summary { display: none; }
 @media (max-width: 880px) {
-  .rail { display: block; padding: 0; }
-  .railtop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 10px 14px; gap: 8px; }
-  .drawer { display: block; }
-  .drawer > summary { display: inline-flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; font-weight: 500; padding: 7px 12px; border: 1px solid var(--line); border-radius: var(--r-control); }
+  .rail, .topbar { position: sticky; top: 0; z-index: 20; }
+  .rail { display: block; padding: 0; height: auto; }
+  .railtop { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; gap: 8px; }
+  .topbar .in { min-height: 0; padding: 10px 14px; flex-wrap: nowrap; }
+  .drawer > summary { position: relative; z-index: 3; display: inline-flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; font-weight: 500; padding: 7px 12px; border: 1px solid var(--line); border-radius: var(--r-control); background: var(--sheet); }
   .drawer > summary::-webkit-details-marker { display: none; }
   .drawer > summary::before { content: ""; width: 16px; height: 12px; background: linear-gradient(var(--ink) 0 2px, transparent 2px 5px, var(--ink) 5px 7px, transparent 7px 10px, var(--ink) 10px 12px); }
-  .drawer[open] > summary { background: var(--sheet-2); }
-  .drawer > .nav, .drawer > .me { flex-basis: 100%; }
-  .drawer > .nav { flex-direction: column; gap: 2px; padding: 6px 0 0; border-top: 1px solid var(--line-2); margin-top: 4px; }
-  .drawer .nav a { padding: 9px 8px; }
-  .drawer .nav a span.t { display: inline; }
-  .drawer .me { display: flex; margin: 0; padding: 8px 8px 10px; border-top: 1px solid var(--line-2); }
-  .drawer .me small { display: block; }
-  .topbar .in { padding: 10px 14px; }
-  .topbar .drawer > .nav { flex-direction: column; width: 100%; }
-  .topbar .drawer > .nav form { padding: 6px 8px; }
+  .drawer[open] > summary::before { content: "×"; background: none; width: auto; height: auto; font-size: 20px; line-height: 12px; }
+  .drawer[open] > summary .t::before { content: "Close"; }
+  .drawer[open] > summary .t { font-size: 0; }
+  .drawer[open] > summary .t::before { font-size: 15px; }
+  /* Backdrop: the page behind goes dim and blurred. Tapping it closes the sheet (app.js). */
+  .drawer[open]::before { content: ""; position: fixed; inset: 0; z-index: 1; background: rgba(20, 33, 27, .42); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  /* The sheet rises from the bottom, like a phone app menu. */
+  .drawer[open] > .sheet { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; background: var(--sheet); border-radius: 18px 18px 0 0; padding: 8px 12px calc(14px + env(safe-area-inset-bottom)); max-height: 86vh; overflow-y: auto; box-shadow: 0 -10px 40px rgba(20, 33, 27, .25); animation: rise .22s ease-out; }
+  .drawer[open] > .sheet::before { content: ""; display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 12px; }
+  .sheet .nav { flex-direction: column; gap: 2px; }
+  .sheet .nav a { padding: 13px 12px; font-size: 17px; border-radius: 8px; }
+  .sheet .nav a span.t { display: inline; }
+  .sheet .nav svg { width: 22px; height: 22px; }
+  .sheet .nav form { padding: 6px 4px 0; }
+  .sheet .nav form button { width: 100%; justify-content: center; font-size: 16px; padding: 11px; border-color: var(--line); }
+  .sheet .me { display: flex; margin: 8px 0 0; padding: 12px 12px 0; border-top: 1px solid var(--line-2); }
+  .sheet .me small { display: block; }
+  .sheet .me button { font-size: 15px; padding: 8px 12px; border-color: var(--line); }
+  body.sheet-open { overflow: hidden; }
+  @keyframes rise { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
   .stats { gap: 8px; }
   .stats .stat { padding: 10px 12px; }
   .stats .big { font-size: 24px; }
@@ -380,3 +390,8 @@ table.ms td:nth-child(3) { width: 150px; }
 }
 .shell.-single { grid-template-rows: auto 1fr; }
 @media (max-width: 880px) { .shell { grid-template-rows: auto 1fr; } }
+/* Menu button always at the right edge of the bar, whatever the browser does with <details>. */
+@media (max-width: 880px) {
+  .railtop, .topbar .in { position: relative; padding-right: 108px; min-height: 56px; }
+  .drawer > summary { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
+}

@@ -22,7 +22,8 @@
 <div class="shell">
 <aside class="rail">
   <div class="railtop"><a class="brand" href="/">{{if .Workspace.HasLogo}}<img src="/logo" alt="">{{else}}<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="11" height="11" rx="3"/><rect x="10" y="7" width="11" height="11" rx="3"/></svg>{{end}}<span>{{.Workspace.Name}}</span></a>
-  <details class="drawer" open><summary>Menu{{if .Unread}}<span class="count">{{.Unread}}</span>{{end}}</summary>
+  <details class="drawer" open><summary><span class="t">Menu</span>{{if .Unread}}<span class="count">{{.Unread}}</span>{{end}}</summary>
+  <div class="sheet">
   <nav class="nav" aria-label="Main">
     <a href="/"><svg><use href="#i-home"/></svg><span class="t">Overview</span></a>
     <a href="/clients"><svg><use href="#i-clients"/></svg><span class="t">Clients</span></a>
@@ -37,6 +38,7 @@
     <a href="/account">{{.User.Name}}<small>{{human .User.Role}}</small></a>
     <form method="post" action="/logout"><button type="submit" class="-quiet -sm">Log out</button></form>
   </div>
+  </div>
   </details></div>
 </aside>
 <main class="content">
@@ -48,13 +50,15 @@
 <div class="shell -single">
 <header class="topbar"><div class="in">
   <a class="brand" href="/">{{if .Workspace.HasLogo}}<img src="/logo" alt="">{{else}}<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="11" height="11" rx="3"/><rect x="10" y="7" width="11" height="11" rx="3"/></svg>{{end}}<span>{{.Workspace.Name}}</span></a>
-  <details class="drawer" open><summary>Menu{{if .Unread}}<span class="count">{{.Unread}}</span>{{end}}</summary>
+  <details class="drawer" open><summary><span class="t">Menu</span>{{if .Unread}}<span class="count">{{.Unread}}</span>{{end}}</summary>
+  <div class="sheet">
   <nav class="nav" aria-label="Main">
     <a href="/"><svg><use href="#i-projects"/></svg><span class="t">Your projects</span></a>
     <a href="/notifications"><svg><use href="#i-bell"/></svg><span class="t">Notifications</span>{{if .Unread}}<span class="count">{{.Unread}}</span>{{end}}</a>
     <a href="/account"><svg><use href="#i-team"/></svg><span class="t">{{.User.Name}}</span></a>
     <form method="post" action="/logout" class="line"><button type="submit" class="-quiet -sm">Log out</button></form>
   </nav>
+  </div>
   </details>
 </div></header>
 <main class="content">

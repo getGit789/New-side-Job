@@ -11,10 +11,24 @@ document.addEventListener("submit", function (e) {
     if (href === "/" ? path === "/" : path === href || path.indexOf(href + "/") === 0) a.setAttribute("aria-current", "page");
   });
 })();
-// On phones the menu starts closed; on wide screens it is always open. Without this script it stays open, which still works.
+// Phone menu: starts closed, opens as a bottom sheet, closes on backdrop tap or Escape.
+// On wide screens it is always open. Without this script it stays open, which still works.
 (function () {
   var mq = window.matchMedia("(max-width: 880px)");
-  function apply() { document.querySelectorAll("details.drawer").forEach(function (d) { d.open = !mq.matches; }); }
+  var drawers = document.querySelectorAll("details.drawer");
+  function sync() {
+    var open = false;
+    drawers.forEach(function (d) { if (mq.matches && d.open) open = true; });
+    document.body.classList.toggle("sheet-open", open);
+  }
+  function apply() { drawers.forEach(function (d) { d.open = !mq.matches; }); sync(); }
   apply();
   mq.addEventListener("change", apply);
+  drawers.forEach(function (d) {
+    d.addEventListener("toggle", sync);
+    d.addEventListener("click", function (e) { if (e.target === d && mq.matches) d.open = false; });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && mq.matches) drawers.forEach(function (d) { d.open = false; });
+  });
 })();

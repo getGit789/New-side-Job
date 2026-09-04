@@ -4,6 +4,7 @@ package web
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"embed"
 	"encoding/hex"
@@ -51,6 +52,7 @@ type Server struct {
 	authLimit *ipLimiter
 	installed atomic.Bool
 	prefs     atomic.Pointer[prefs] // workspace settings; see settings.go
+	assets    string                // hash of the static files, so a changed stylesheet gets a new URL
 	dummyHash string                // keeps failed logins for unknown users as slow as real ones
 }
 
@@ -82,6 +84,15 @@ func New(cfg config.Config, d *db.DB, q *jobs.Queue, m *mail.Mailer, st *storage
 	if err := s.loadPrefs(context.Background()); err != nil {
 		return nil, err
 	}
+	h := sha256.New()
+	for _, name := range []string{"static/app.css", "static/app.js"} {
+		b, err := staticFS.ReadFile(name)
+		if err != nil {
+			return nil, err
+		}
+		h.Write(b)
+	}
+	s.assets = hex.EncodeToString(h.Sum(nil))[:12]
 	for _, p := range []string{"setup", "login", "home", "error", "clients", "client", "projects", "project", "deliverable", "team", "invite", "activity", "notifications", "portal_project", "portal_deliverable", "portal_intake", "account", "forgot", "reset", "settings", "search"} {
 		t, err := template.New("").Funcs(s.funcs()).ParseFS(templateFS, "templates/layout.html", "templates/"+p+".html")
 		if err != nil {
@@ -135,8 +146,8 @@ func (s *Server) Handler() http.Handler {
 	return h
 }
 
-// static serves the stylesheet, script and font with long caching; templates append ?v=Version so an
-// update changes the URL.
+// static serves the stylesheet, script and font with long caching; templates append ?v=<content hash>
+// so any change to the files changes the URL and no browser keeps a stale copy.
 func (s *Server) static() http.Handler {
 	fs := http.FileServerFS(staticFS)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -290,7 +301,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page
 	v.User = s.user(r)
 	v.Demo = s.cfg.IsDemo()
 	v.Workspace = s.prefs.Load()
-	v.Version = Version
+	v.Version = s.assets
 	if v.User != nil {
 		v.Role = domain.Role(v.User.Role)
 		v.IsOwner = v.Role == domain.RoleOwner
